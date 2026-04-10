@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    tools:context=".fragments.SettingsFragment">
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/scrView">
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:id="@+id/linearHeaderSettings"
+                android:background="@drawable/header_text_view"
+                android:paddingBottom="10dp"
+                android:paddingLeft="20dp"
+                android:paddingRight="20dp"
+                >
+                <TextView
+                    android:id="@+id/textView"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Xin chào"
+                    android:textStyle="bold"
+                    android:gravity="clip_vertical"
+                    android:layout_weight="1"
+                    android:layout_gravity="center_vertical"/>
+
+                <com.google.android.material.imageview.ShapeableImageView
+                    android:id="@+id/settingsAvatar"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/empty_avatar"
+                    app:shapeAppearanceOverlay="@style/circleImageStyle"/>
+            </LinearLayout>
+            <Button
+                android:id="@+id/bt_upload"
+                android:layout_marginTop="10dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Tải nhạc lên"
+                android:textColor="@color/black"
+                android:layout_below="@+id/linearHeaderSettings"
+                android:backgroundTint="@android:color/transparent"
+                android:textAlignment="textStart"
+                android:textStyle="bold"
+                android:textSize="20sp"
+                android:padding="20dp" />
+
+            <ProgressBar
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+                android:id="@+id/progressbar"
+                android:layout_below="@id/bt_upload"
+                android:layout_marginTop="10dp"
+                android:visibility="gone"
+                >
+            </ProgressBar>
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/white"
+                android:padding="15dp"
+                android:id="@+id/rl_layout"
+                android:visibility="gone"
+                android:layout_below="@+id/progressbar">
+
+                <ImageView
+                    android:id="@+id/img1"
+                    android:layout_width="80dp"
+                    android:layout_height="80dp"
+                    android:src="@drawable/logo"
+                    android:layout_marginTop="10dp"/>
+
+                <LinearLayout
+                    android:id="@+id/ln_layout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_toRightOf="@+id/img1"
+                    android:orientation="vertical">
+
+                    <EditText
+                        android:id="@+id/tvSong"
+                        android:layout_width="240dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="10dp"
+                        android:minHeight="48dp"
+                        android:text="Tên bài hát"
+                        android:hint="Tên bài hát"
+                        android:textColor="@color/black"
+                        android:textSize="20sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/tvArtist"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@+id/tvSong"
+                        android:layout_marginLeft="10dp"
+                        android:minHeight="48dp"
+                        android:text="Nghệ sĩ"
+                        android:hint="Nghệ sĩ"
+                        android:textColor="@color/black"
+                        android:textSize="18sp" />
+
+                    <EditText
+                        android:id="@+id/tvCategory"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@+id/tvArtist"
+                        android:layout_marginLeft="10dp"
+                        android:minHeight="48dp"
+                        android:text="Thể loại"
+                        android:hint="Thể loại"
+                        android:textColor="@color/black" />
+
+                    <TextView
+                        android:id="@+id/tvsrl"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@+id/tvCategory"
+                        android:layout_marginLeft="10dp"
+                        android:contentDescription="#000"
+                        android:text="Chưa chọn file audio"
+                        android:textColor="@color/black" />
+                </LinearLayout>
+                <Button
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:id="@+id/buttonUplaod"
+                    android:layout_marginTop="10dp"
+                    android:text="Bắt đầu tải lên"
+                    android:textStyle="bold"
+                    android:layout_below="@+id/ln_layout"
+                    ></Button>
+            </RelativeLayout>
+
+            <TextView
+                android:id="@+id/tv_uploaded_song"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="20dp"
+                android:textColor="@color/black"
+                android:text="Nhạc đã tải lên"
+                android:textStyle="bold"
+                android:textSize="20sp"
+                android:layout_below="@id/rl_layout"
+                />
+
+            <ProgressBar
+                android:id="@+id/rcvProgressBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@+id/tv_uploaded_song" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rcvlist_song_uploaded"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@+id/tv_uploaded_song"
+                android:layout_marginTop="1dp"
+                android:paddingLeft="10dp"
+                android:paddingRight="10dp"
+                android:layout_marginBottom="68dp"
+                android:textSize="20sp"
+                />
+        </RelativeLayout>
+    </ScrollView>
+
+    <Button
+        android:id="@+id/logout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_gravity="bottom|center"
+        android:layout_marginBottom="20dp"
+        android:text="Đăng xuất" />
+</FrameLayout>
