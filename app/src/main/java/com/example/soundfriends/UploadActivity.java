@@ -477,6 +477,58 @@ public class UploadActivity extends AppCompatActivity {
             Toast.makeText(this, "Vui lòng nhập tên bài hát", Toast.LENGTH_SHORT).show();
             return;
         }
+
+        progressBar.setVisibility(View.VISIBLE);
+        btnPost.setEnabled(false);
+
+        String songID = uuid.createTransactionID();
+        // Lấy đuôi file hoặc mặc định là .3gp nếu là ghi âm
+        String extension = "3gp";
+        String mimeType = getContentResolver().getType(audioUri);
+        if (mimeType != null) {
+            extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType);
+        }
+
+        StorageReference fileReference = mStorageRef.child(songID + "." + extension);
+
+        mUploadTask = fileReference.putFile(audioUri)
+                .addOnSuccessListener(taskSnapshot -> {
+                    fileReference.getDownloadUrl().addOnSuccessListener(uri -> {
+                        String audioUrl = uri.toString();
+                        String base64Image = "";
+
+                        // Chuyển bitmap sang Base64 để lưu vào Database (theo cách Adapter của bạn đang dùng)
+                        if (songBitmap != null) {
+                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                            songBitmap.compress(Bitmap.CompressFormat.JPEG, 70, baos);
+                            byte[] b = baos.toByteArray();
+                            base64Image = Base64.encodeToString(b, Base64.DEFAULT);
+                        }
+
+                        Songs song = new Songs(songID, title, artist, category, base64Image, audioUrl, userID, currentUserName, currentUserAvatar, status);
+                        
+                        referenceSongs.child(songID).setValue(song)
+                                .addOnSuccessListener(aVoid -> {
+                                    progressBar.setVisibility(View.GONE);
+                                    Toast.makeText(UploadActivity.this, "Đăng bài thành công!", Toast.LENGTH_SHORT).show();
+                                    finish();
+                                })
+                                .addOnFailureListener(e -> {
+                                    progressBar.setVisibility(View.GONE);
+                                    btnPost.setEnabled(true);
+                                    Toast.makeText(UploadActivity.this, "Lỗi khi lưu thông tin: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                                });
+                    });
+                })
+                .addOnFailureListener(e -> {
+                    progressBar.setVisibility(View.GONE);
+                    btnPost.setEnabled(true);
+                    Toast.makeText(UploadActivity.this, "Lỗi khi tải file: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                })
+                .addOnProgressListener(snapshot -> {
+                    double progress = (100.0 * snapshot.getBytesTransferred() / snapshot.getTotalByteCount());
+                    progressBar.setProgress((int) progress);
+                });
     }
     
     private String formatTime(int ms) {
