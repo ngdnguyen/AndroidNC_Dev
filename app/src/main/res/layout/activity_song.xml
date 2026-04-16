@@ -108,7 +108,7 @@
                     android:layout_marginLeft="40dp"
                     android:layout_marginTop="30dp"
                     android:layout_toRightOf="@+id/textlike"
-                    android:src="@drawable/ic_like_unselected" />
+                    android:src="@drawable/ic_star_border" />
 
                 <ImageView
                     android:id="@+id/phonering"

@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "427924436339-t9am2vgktr63220nnf3rs8j9kiimfv0d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.soundfriends",
+            "certificate_hash": "1140b95368ad991f6326d62b9e8a2f6549411ed9"
+          }
+        },
+        {
           "client_id": "427924436339-ngk8ds09j5mejfjegfbithhst8cbt8qs.apps.googleusercontent.com",
           "client_type": 3
         }

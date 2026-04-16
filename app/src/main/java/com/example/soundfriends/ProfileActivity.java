@@ -27,6 +27,7 @@ import com.bumptech.glide.Glide;
 import com.example.soundfriends.adapter.HomeFeedAdapter;
 import com.example.soundfriends.fragments.Model.Songs;
 import com.example.soundfriends.fragments.Model.User;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.tabs.TabLayout;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -56,6 +57,7 @@ public class ProfileActivity extends AppCompatActivity {
     private TabLayout tabLayout;
     private LinearLayout layoutInfo;
     private View llFollowers, llFollowing;
+    private FloatingActionButton fabAddPost;
 
     private String profileUserID;
     private String currentUserID;
@@ -95,11 +97,17 @@ public class ProfileActivity extends AppCompatActivity {
             btnAction.setVisibility(View.GONE);
             btnEditProfile.setVisibility(View.VISIBLE);
             btnEditAvatar.setVisibility(View.VISIBLE);
+            fabAddPost.setVisibility(View.VISIBLE);
             
             btnEditProfile.setOnClickListener(v -> showEditProfileDialog());
             btnEditAvatar.setOnClickListener(v -> chooseImage());
+            fabAddPost.setOnClickListener(v -> {
+                Intent intent = new Intent(ProfileActivity.this, UploadActivity.class);
+                startActivity(intent);
+            });
         } else {
             btnAction.setOnClickListener(v -> toggleFollow());
+            fabAddPost.setVisibility(View.GONE);
         }
 
         llFollowers.setOnClickListener(v -> {
@@ -131,6 +139,7 @@ public class ProfileActivity extends AppCompatActivity {
         progressBar = findViewById(R.id.progressBar);
         tabLayout = findViewById(R.id.tabLayout);
         layoutInfo = findViewById(R.id.layoutInfo);
+        fabAddPost = findViewById(R.id.fabAddPost);
         
         // Find parent layouts for stats to make them clickable
         llFollowers = (View) tvFollowersCount.getParent();
@@ -331,6 +340,12 @@ public class ProfileActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        
+        // Forward result to adapter for song editing
+        if (adapter != null) {
+            adapter.onActivityResult(requestCode, resultCode, data);
+        }
+
         if (requestCode == PICK_IMAGE_REQUEST && resultCode == RESULT_OK && data != null && data.getData() != null) {
             filePath = data.getData();
             try {

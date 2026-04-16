@@ -1,6 +1,7 @@
 package com.example.soundfriends;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.viewpager2.widget.ViewPager2;
 
@@ -31,11 +32,15 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
+import java.util.Timer;
+import java.util.TimerTask;
+
 public class MainActivity extends AppCompatActivity {
     ViewPager2 viewPager;
     BottomNavigationView bottomNavigationView;
     AutoCompleteTextView searchBar;
     ImageButton btnClearSearch;
+    private Timer timer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,14 +49,15 @@ public class MainActivity extends AppCompatActivity {
 
         viewPager = (ViewPager2) findViewById(R.id.view_pager);
         viewPager.setUserInputEnabled(false);
+        // Tối ưu 1: Giữ các Fragment trong bộ nhớ để tránh khởi tạo lại gây lag/crash
+        viewPager.setOffscreenPageLimit(2);
+
         bottomNavigationView = (BottomNavigationView) findViewById(R.id.bottom_nav);
         searchBar = findViewById(R.id.search_bar);
         btnClearSearch = findViewById(R.id.btnSearch);
 
-        // Sync user data to database for profile features
         syncUserToDatabase();
 
-        //set view pager adapter at bottom navigation
         ViewPagerAdapter viewPagerAdapter = new ViewPagerAdapter(this);
         viewPager.setAdapter(viewPagerAdapter);
         viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
@@ -103,8 +109,12 @@ public class MainActivity extends AppCompatActivity {
                 if (s.length() > 0 && viewPager.getCurrentItem() != 1) {
                     viewPager.setCurrentItem(1);
                 }
-
-                performSearch(s.toString());
+                
+                // Tối ưu 2: Debounce Search - Chỉ gọi search sau khi người dùng ngừng gõ 500ms
+                if (timer != null) {
+                    timer.cancel();
+                }
+                
                 if (s.length() > 0) {
                     btnClearSearch.setVisibility(View.VISIBLE);
                 } else {
@@ -113,14 +123,21 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
-            public void afterTextChanged(Editable s) {}
+            public void afterTextChanged(Editable s) {
+                timer = new Timer();
+                timer.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        runOnUiThread(() -> performSearch(s.toString()));
+                    }
+                }, 500);
+            }
         });
 
         btnClearSearch.setOnClickListener(v -> {
             searchBar.setText("");
         });
         
-        // Initial state of clear button
         btnClearSearch.setVisibility(View.GONE);
     }
 
@@ -134,14 +151,10 @@ public class MainActivity extends AppCompatActivity {
                 public void onDataChange(@NonNull DataSnapshot snapshot) {
                     if (!snapshot.exists()) {
                         String name = firebaseUser.getDisplayName();
-                        
-                        // Nếu không có tên hiển thị (thường là đăng ký qua email), tự tạo tên user_xxx
                         if (name == null || name.isEmpty()) {
-                            // Lấy 4 ký tự cuối của UID để tạo tên duy nhất
                             String suffix = uid.length() > 4 ? uid.substring(uid.length() - 4) : uid;
                             name = "user_" + suffix;
                         }
-
                         String avatar = firebaseUser.getPhotoUrl() != null ? firebaseUser.getPhotoUrl().toString() : "";
                         User newUser = new User(uid, name, firebaseUser.getEmail(), avatar);
                         userRef.setValue(newUser);
@@ -162,14 +175,34 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void performSearch(String query) {
+        // Tối ưu 3: Kiểm tra an toàn trước khi gọi fragment
+        if (isFinishing() || isDestroyed()) return;
+
         SearchFragment searchFragment = (SearchFragment) getSupportFragmentManager().findFragmentByTag("f1");
-        if (searchFragment != null) {
+        if (searchFragment != null && searchFragment.isAdded()) {
             searchFragment.searchSongs(query);
         }
 
         HomeFragment homeFragment = (HomeFragment) getSupportFragmentManager().findFragmentByTag("f0");
-        if (homeFragment != null) {
+        if (homeFragment != null && homeFragment.isAdded()) {
             homeFragment.searchSongs(query);
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        HomeFragment homeFragment = (HomeFragment) getSupportFragmentManager().findFragmentByTag("f0");
+        if (homeFragment != null && homeFragment.isAdded()) {
+            homeFragment.handleActivityResult(requestCode, resultCode, data);
+        }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        if (timer != null) {
+            timer.cancel();
+        }
+        super.onDestroy();
     }
 }

@@ -296,6 +296,12 @@ public class HomeFragment extends Fragment {
         notifyAdapters();
     }
 
+    public void handleActivityResult(int requestCode, int resultCode, Intent data) {
+        if (homeFeedAdapter != null) {
+            homeFeedAdapter.onActivityResult(requestCode, resultCode, data);
+        }
+    }
+
     private void notifyAdapters() {
         if (bestSongsAdapter != null) bestSongsAdapter.notifyDataSetChanged();
         if (bestSingersAdapter != null) bestSingersAdapter.notifyDataSetChanged();

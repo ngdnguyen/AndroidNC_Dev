@@ -28,6 +28,7 @@ import androidx.core.content.ContextCompat;
 import androidx.core.widget.NestedScrollView;
 
 import com.bumptech.glide.Glide;
+import com.example.soundfriends.adapter.HomeFeedAdapter;
 import com.example.soundfriends.fragments.CommentsFragment;
 import com.example.soundfriends.fragments.Model.Songs;
 import com.google.firebase.auth.FirebaseAuth;
@@ -59,7 +60,7 @@ import okhttp3.Response;
 public class Song extends AppCompatActivity implements SensorEventListener {
     boolean isPlaying = false;
     boolean isDirty = false;
-    private MediaPlayer mediaPlayer;
+    private static MediaPlayer mediaPlayer;
     private SeekBar seekBar;
     private final Handler handler = new Handler();
     private int currentPosition;
@@ -80,6 +81,7 @@ public class Song extends AppCompatActivity implements SensorEventListener {
     private boolean isShakeEnabled = false;
     private long lastShakeTime = 0;
     private boolean isChangingSong = false;
+    private boolean autoPlayFirstTime = true; // Flag để tự động phát lần đầu
 
     ImageButton loopBtn, shuffle;
     private boolean isLoop, isShuffling = false;
@@ -115,10 +117,25 @@ public class Song extends AppCompatActivity implements SensorEventListener {
         }
     };
 
+    public static void stopAllMusic() {
+        if (mediaPlayer != null) {
+            try {
+                if (mediaPlayer.isPlaying()) mediaPlayer.stop();
+                mediaPlayer.release();
+            } catch (Exception ignored) {}
+            mediaPlayer = null;
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_song);
+
+        // Khi mở trình phát này, dừng các trình phát khác
+        HomeFeedAdapter.stopAllMusic();
+        UploadActivity.stopAllPreview();
+        stopAllMusic();
 
         mediaPlayer = new MediaPlayer();
         mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
@@ -126,13 +143,17 @@ public class Song extends AppCompatActivity implements SensorEventListener {
             if (seekBar != null) {
                 seekBar.setMax(mediaPlayer.getDuration());
             }
-            if (isChangingSong) {
+            
+            // Tự động phát khi bài hát đã sẵn sàng (cho cả lần đầu vào và khi chuyển bài)
+            if (isChangingSong || autoPlayFirstTime) {
                 playAudio();
                 play.setImageResource(R.drawable.pause);
                 isPlaying = true;
                 isDirty = true;
                 isChangingSong = false;
+                autoPlayFirstTime = false;
             }
+
             handler.removeCallbacks(updateSeekBar);
             handler.postDelayed(updateSeekBar, 100);
         });
@@ -191,12 +212,20 @@ public class Song extends AppCompatActivity implements SensorEventListener {
 
         play.setOnClickListener(v -> {
             if (!isDirty) {
+                // Đảm bảo dừng các nguồn khác khi bắt đầu phát ở đây
+                HomeFeedAdapter.stopAllMusic();
+                UploadActivity.stopAllPreview();
+                
                 playAudio();
                 play.setImageResource(R.drawable.pause);
                 isPlaying = true;
                 isDirty = true;
             } else {
                 if (!isPlaying) {
+                    // Đảm bảo dừng các nguồn khác khi bắt đầu phát ở đây
+                    HomeFeedAdapter.stopAllMusic();
+                    UploadActivity.stopAllPreview();
+                    
                     resumeAudio();
                     play.setImageResource(R.drawable.pause);
                 } else {
@@ -485,9 +514,9 @@ public class Song extends AppCompatActivity implements SensorEventListener {
 
     private void updateFavoriteUI() {
         if (btnFavorite != null) {
-            btnFavorite.setImageResource(isFavorited ? R.drawable.ic_like_selected : R.drawable.ic_like_unselected);
+            btnFavorite.setImageResource(isFavorited ? R.drawable.ic_star_filled : R.drawable.ic_star_border);
             if (isFavorited) {
-                btnFavorite.setColorFilter(ContextCompat.getColor(this, android.R.color.holo_red_dark));
+                btnFavorite.setColorFilter(ContextCompat.getColor(this, android.R.color.holo_orange_dark));
             } else {
                 btnFavorite.clearColorFilter();
             }
@@ -557,6 +586,8 @@ public class Song extends AppCompatActivity implements SensorEventListener {
     protected void onDestroy() {
         super.onDestroy();
         handler.removeCallbacks(updateSeekBar);
+        // Không release static mediaPlayer ở đây nếu muốn nhạc tiếp tục phát khi thoát activity (tùy logic app)
+        // Nhưng ở đây nên release nếu không dùng Service.
         if (mediaPlayer != null) {
             mediaPlayer.release();
             mediaPlayer = null;
