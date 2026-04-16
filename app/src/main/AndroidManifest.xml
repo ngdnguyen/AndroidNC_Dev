@@ -9,6 +9,11 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Quyền phát nền và thông báo trên Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
     <uses-feature android:name="android.hardware.sensor.accelerometer" />
 
     <application
@@ -48,7 +53,8 @@
             android:exported="true" />
         <activity
             android:name=".Song"
-            android:exported="false" />
+            android:exported="false"
+            android:launchMode="singleTop" /> <!-- singleTop để khi nhấn thông báo không mở activity mới -->
         <activity
             android:name=".auth.Login"
             android:exported="true" />
@@ -60,6 +66,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Khai báo MusicService -->
+        <service
+            android:name=".services.MusicService"
+            android:enabled="true"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+
     </application>
 
 </manifest>
