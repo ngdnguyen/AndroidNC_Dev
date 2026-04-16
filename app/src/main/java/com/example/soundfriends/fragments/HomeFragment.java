@@ -34,8 +34,10 @@ import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import de.hdodenhof.circleimageview.CircleImageView;
@@ -49,7 +51,9 @@ public class HomeFragment extends Fragment {
     SwipeRefreshLayout swipeRefreshLayout;
 
     DatabaseReference databaseReference;
-    List<Songs> songs = new ArrayList<>();
+    List<Songs> songs = new ArrayList<>(); // Top Songs
+    List<Songs> groupedSingers = new ArrayList<>();
+    List<Songs> groupedCategories = new ArrayList<>();
     List<Songs> feedSongs = new ArrayList<>();
     
     List<Songs> allSongs = new ArrayList<>();
@@ -99,20 +103,18 @@ public class HomeFragment extends Fragment {
         swipeRefreshLayout = view.findViewById(R.id.swipeRefreshLayout);
 
         ivUserAvatarHeader = view.findViewById(R.id.ivUserAvatarHeader);
-        tvUserNameHeader = view.findViewById(R.id.tvUserNameHeader);
+        tvUserNameHeader = tvUserNameHeader = view.findViewById(R.id.tvUserNameHeader);
         tvShareMusicPrompt = view.findViewById(R.id.tvShareMusicPrompt);
     }
 
     private void setupUserData() {
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user != null) {
-            // Hiển thị mặc định từ Auth
             tvUserNameHeader.setText(user.getDisplayName() != null ? user.getDisplayName() : user.getEmail());
             if (user.getPhotoUrl() != null) {
                 Glide.with(this).load(user.getPhotoUrl()).into(ivUserAvatarHeader);
             }
 
-            // Đồng bộ từ database để lấy thông tin cá nhân hóa mới nhất
             DatabaseReference userRef = FirebaseDatabase.getInstance().getReference("users").child(user.getUid());
             userRef.addValueEventListener(new ValueEventListener() {
                 @Override
@@ -142,10 +144,10 @@ public class HomeFragment extends Fragment {
         bestSongsAdapter = new Main_BestSongsAdapter(getContext(), songs);
         rcvBestSongs.setAdapter(bestSongsAdapter);
 
-        bestSingersAdapter = new Main_BestSingersAdapter(getContext(), songs);
+        bestSingersAdapter = new Main_BestSingersAdapter(getContext(), groupedSingers);
         rcvBestSingers.setAdapter(bestSingersAdapter);
 
-        bestCategoriesAdapter = new Main_BestCategoriesAdapter(getContext(), songs);
+        bestCategoriesAdapter = new Main_BestCategoriesAdapter(getContext(), groupedCategories);
         rcvBestCategories.setAdapter(bestCategoriesAdapter);
 
         homeFeedAdapter = new HomeFeedAdapter(getContext(), feedSongs);
@@ -161,7 +163,6 @@ public class HomeFragment extends Fragment {
 
         if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(true);
 
-        // Lấy danh sách đang follow để ưu tiên bài đăng
         DatabaseReference followingRef = FirebaseDatabase.getInstance().getReference("following").child(currentUser.getUid());
         followingRef.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
@@ -186,8 +187,8 @@ public class HomeFragment extends Fragment {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 allSongs.clear();
-                List<Songs> followedSongs = new ArrayList<>();
-                List<Songs> otherSongs = new ArrayList<>();
+                Map<String, List<Songs>> singerGroups = new HashMap<>();
+                Map<String, List<Songs>> categoryGroups = new HashMap<>();
 
                 for (DataSnapshot dataSnapshotItem : snapshot.getChildren()) {
                     Songs song = dataSnapshotItem.getValue(Songs.class);
@@ -195,62 +196,95 @@ public class HomeFragment extends Fragment {
                         if (song.getId() == null) song.setId(dataSnapshotItem.getKey());
                         allSongs.add(song);
                         
-                        if (followingIds.contains(song.getUserID())) {
-                            followedSongs.add(song);
-                        } else {
-                            otherSongs.add(song);
-                        }
+                        // Group by Singer
+                        String artist = song.getArtist() != null ? song.getArtist() : "Nghệ sĩ";
+                        if (!singerGroups.containsKey(artist)) singerGroups.put(artist, new ArrayList<>());
+                        singerGroups.get(artist).add(song);
+
+                        // Group by Category
+                        String category = song.getCategory() != null ? song.getCategory() : "Âm nhạc";
+                        if (!categoryGroups.containsKey(category)) categoryGroups.put(category, new ArrayList<>());
+                        categoryGroups.get(category).add(song);
                     }
                 }
                 
-                // Sắp xếp theo thời gian mới nhất (timestamp giảm dần)
-                Collections.sort(followedSongs, (s1, s2) -> Long.compare(s2.getTimestamp(), s1.getTimestamp()));
-                Collections.sort(otherSongs, (s1, s2) -> Long.compare(s2.getTimestamp(), s1.getTimestamp()));
-                
-                allFeedSongs.clear();
-                allFeedSongs.addAll(followedSongs);
-                allFeedSongs.addAll(otherSongs);
-                
-                songs.clear();
-                songs.addAll(allSongs);
-                // Sắp xếp danh sách chung theo thời gian
-                Collections.sort(songs, (s1, s2) -> Long.compare(s2.getTimestamp(), s1.getTimestamp()));
-
-                feedSongs.clear();
-                feedSongs.addAll(allFeedSongs);
+                processHomeFeed(followingIds);
+                processBestSongs();
+                processBestSingers(singerGroups);
+                processBestCategories(categoryGroups);
                 
                 notifyAdapters();
                 if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
             }
 
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {
+            @Override public void onCancelled(@NonNull DatabaseError error) {
                 if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
             }
         });
     }
 
+    private void processHomeFeed(Set<String> followingIds) {
+        List<Songs> followedSongs = new ArrayList<>();
+        List<Songs> otherSongs = new ArrayList<>();
+
+        for (Songs song : allSongs) {
+            if (followingIds.contains(song.getUserID())) followedSongs.add(song);
+            else otherSongs.add(song);
+        }
+
+        // Sort: Likes + Following Priority
+        Collections.sort(followedSongs, (s1, s2) -> Long.compare(s2.getLikes(), s1.getLikes()));
+        Collections.sort(otherSongs, (s1, s2) -> Long.compare(s2.getLikes(), s1.getLikes()));
+
+        allFeedSongs.clear();
+        allFeedSongs.addAll(followedSongs);
+        allFeedSongs.addAll(otherSongs);
+
+        feedSongs.clear();
+        feedSongs.addAll(allFeedSongs);
+    }
+
+    private void processBestSongs() {
+        songs.clear();
+        songs.addAll(allSongs);
+        // Sort by Likes
+        Collections.sort(songs, (s1, s2) -> Long.compare(s2.getLikes(), s1.getLikes()));
+    }
+
+    private void processBestSingers(Map<String, List<Songs>> groups) {
+        groupedSingers.clear();
+        List<Map.Entry<String, List<Songs>>> sortedEntries = new ArrayList<>(groups.entrySet());
+        
+        // Sort singers by total likes
+        Collections.sort(sortedEntries, (e1, e2) -> {
+            long l1 = 0; for(Songs s : e1.getValue()) l1 += s.getLikes();
+            long l2 = 0; for(Songs s : e2.getValue()) l2 += s.getLikes();
+            return Long.compare(l2, l1);
+        });
+
+        for (Map.Entry<String, List<Songs>> entry : sortedEntries) {
+            // Represent singer by the first song
+            Songs representative = entry.getValue().get(0);
+            groupedSingers.add(representative);
+        }
+    }
+
+    private void processBestCategories(Map<String, List<Songs>> groups) {
+        groupedCategories.clear();
+        for (Map.Entry<String, List<Songs>> entry : groups.entrySet()) {
+            Songs representative = entry.getValue().get(0);
+            groupedCategories.add(representative);
+        }
+    }
+
     public void searchSongs(String query) {
         if (query == null || query.isEmpty()) {
-            songs.clear();
-            songs.addAll(allSongs);
-            // Sắp xếp lại khi xóa search
-            Collections.sort(songs, (s1, s2) -> Long.compare(s2.getTimestamp(), s1.getTimestamp()));
-            
             feedSongs.clear();
             feedSongs.addAll(allFeedSongs);
+            // Re-process groups or use allSongs
+            processBestSongs();
         } else {
             String lowerQuery = query.toLowerCase();
-            songs.clear();
-            for (Songs s : allSongs) {
-                if ((s.getTitle() != null && s.getTitle().toLowerCase().contains(lowerQuery)) ||
-                    (s.getArtist() != null && s.getArtist().toLowerCase().contains(lowerQuery))) {
-                    songs.add(s);
-                }
-            }
-            // Sắp xếp kết quả search theo thời gian
-            Collections.sort(songs, (s1, s2) -> Long.compare(s2.getTimestamp(), s1.getTimestamp()));
-
             feedSongs.clear();
             for (Songs s : allFeedSongs) {
                 if ((s.getTitle() != null && s.getTitle().toLowerCase().contains(lowerQuery)) ||

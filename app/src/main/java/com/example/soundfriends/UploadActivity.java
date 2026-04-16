@@ -230,8 +230,18 @@ public class UploadActivity extends AppCompatActivity {
             String genre = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE);
             byte[] art = retriever.getEmbeddedPicture();
 
-            if (title != null) etSongTitle.setText(title);
-            if (artist != null) etArtist.setText(artist);
+            if (title != null && !title.isEmpty()) {
+                etSongTitle.setText(title);
+            } else {
+                etSongTitle.setText("Bản nhạc mới");
+            }
+
+            if (artist != null && !artist.isEmpty()) {
+                etArtist.setText(artist);
+            } else {
+                etArtist.setText(currentUserName);
+            }
+
             if (genre != null) musicGenre = genre;
             
             if (art != null) {
@@ -242,6 +252,7 @@ public class UploadActivity extends AppCompatActivity {
             }
         } catch (Exception e) {
             Log.e("UploadActivity", "Metadata error: " + e.getMessage());
+            etArtist.setText(currentUserName);
         } finally {
             try { retriever.release(); } catch (Exception ignored) {}
         }
@@ -280,6 +291,10 @@ public class UploadActivity extends AppCompatActivity {
             return;
         }
 
+        if (artist.isEmpty()) {
+            artist = currentUserName;
+        }
+
         progressBar.setVisibility(View.VISIBLE);
         btnPost.setEnabled(false);
 
@@ -287,9 +302,10 @@ public class UploadActivity extends AppCompatActivity {
         if (extension == null) extension = "3gp"; // Cho file ghi âm
 
         StorageReference fileRef = mStorageRef.child(System.currentTimeMillis() + "." + extension);
+        String finalArtist = artist;
         mUploadTask = fileRef.putFile(audioUri)
                 .addOnSuccessListener(taskSnapshot -> fileRef.getDownloadUrl().addOnSuccessListener(uri -> {
-                    saveToDatabase(uri.toString(), title, artist, status);
+                    saveToDatabase(uri.toString(), title, finalArtist, status);
                 }))
                 .addOnFailureListener(e -> {
                     progressBar.setVisibility(View.GONE);

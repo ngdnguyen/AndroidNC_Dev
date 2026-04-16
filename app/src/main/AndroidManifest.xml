@@ -25,6 +25,11 @@
         tools:targetApi="31">
 
         <activity
+            android:name=".ListSongsActivity"
+            android:exported="false"
+            android:label="Danh sách bài hát" />
+
+        <activity
             android:name=".UserListActivity"
             android:exported="false" />
 

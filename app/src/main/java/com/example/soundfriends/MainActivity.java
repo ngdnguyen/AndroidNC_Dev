@@ -12,6 +12,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
 import com.example.soundfriends.adapter.ViewPagerAdapter;
@@ -34,6 +35,7 @@ public class MainActivity extends AppCompatActivity {
     ViewPager2 viewPager;
     BottomNavigationView bottomNavigationView;
     AutoCompleteTextView searchBar;
+    ImageButton btnClearSearch;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +46,7 @@ public class MainActivity extends AppCompatActivity {
         viewPager.setUserInputEnabled(false);
         bottomNavigationView = (BottomNavigationView) findViewById(R.id.bottom_nav);
         searchBar = findViewById(R.id.search_bar);
+        btnClearSearch = findViewById(R.id.btnSearch);
 
         // Sync user data to database for profile features
         syncUserToDatabase();
@@ -81,18 +84,44 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        searchBar.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                viewPager.setCurrentItem(1);
+            }
+        });
+
+        searchBar.setOnClickListener(v -> {
+            viewPager.setCurrentItem(1);
+        });
+
         searchBar.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (s.length() > 0 && viewPager.getCurrentItem() != 1) {
+                    viewPager.setCurrentItem(1);
+                }
+
                 performSearch(s.toString());
+                if (s.length() > 0) {
+                    btnClearSearch.setVisibility(View.VISIBLE);
+                } else {
+                    btnClearSearch.setVisibility(View.GONE);
+                }
             }
 
             @Override
             public void afterTextChanged(Editable s) {}
         });
+
+        btnClearSearch.setOnClickListener(v -> {
+            searchBar.setText("");
+        });
+        
+        // Initial state of clear button
+        btnClearSearch.setVisibility(View.GONE);
     }
 
     private void syncUserToDatabase() {
@@ -120,6 +149,15 @@ public class MainActivity extends AppCompatActivity {
                 }
                 @Override public void onCancelled(@NonNull DatabaseError error) {}
             });
+        }
+    }
+
+    public void searchInFragment(String query) {
+        if (searchBar != null) {
+            searchBar.setText(query);
+        }
+        if (viewPager != null) {
+            viewPager.setCurrentItem(1);
         }
     }
 

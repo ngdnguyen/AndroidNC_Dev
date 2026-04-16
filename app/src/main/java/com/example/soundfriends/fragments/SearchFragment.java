@@ -15,6 +15,7 @@ import android.widget.AdapterView;
 import com.example.soundfriends.R;
 import com.example.soundfriends.adapter.SearchSongAdapter;
 import com.example.soundfriends.fragments.Model.Songs;
+import com.example.soundfriends.fragments.Model.User;
 import com.example.soundfriends.utils.WrapContentLinearLayoutManager;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
@@ -30,89 +31,100 @@ public class SearchFragment extends Fragment implements AdapterView.OnItemSelect
     RecyclerView recyclerView;
     SearchSongAdapter searchSongAdapter;
     List<Songs> allSongs = new ArrayList<>();
-    List<Songs> displayedSongs = new ArrayList<>();
-    DatabaseReference databaseReference;
-    ValueEventListener valueEventListener;
+    List<User> allUsers = new ArrayList<>();
+    List<Object> displayedItems = new ArrayList<>();
+    
+    DatabaseReference songsRef, usersRef;
 
     public SearchFragment() {
         // Required empty public constructor
     }
 
-    public static SearchFragment newInstance(String param1, String param2) {
-        SearchFragment fragment = new SearchFragment();
-        return fragment;
-    }
-
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        // Inflate the layout for this fragment
         View view = inflater.inflate(R.layout.fragment_search, container, false);
 
         recyclerView = view.findViewById(R.id.rcvlist_search);
         recyclerView.setLayoutManager(new WrapContentLinearLayoutManager(requireContext(), LinearLayoutManager.VERTICAL, false));
 
-        searchSongAdapter = new SearchSongAdapter(requireContext(), displayedSongs);
+        searchSongAdapter = new SearchSongAdapter(requireContext(), displayedItems);
         recyclerView.setAdapter(searchSongAdapter);
 
-        fetchSongs();
+        fetchData();
 
         return view;
     }
 
-    private void fetchSongs() {
-        databaseReference = FirebaseDatabase.getInstance().getReference().child("songs");
-        valueEventListener = new ValueEventListener() {
+    private void fetchData() {
+        songsRef = FirebaseDatabase.getInstance().getReference().child("songs");
+        usersRef = FirebaseDatabase.getInstance().getReference().child("users");
+
+        // Fetch Songs
+        songsRef.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 allSongs.clear();
-                for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
-                    Songs song = dataSnapshot.getValue(Songs.class);
+                for (DataSnapshot ds : snapshot.getChildren()) {
+                    Songs song = ds.getValue(Songs.class);
                     if (song != null) {
-                        if (song.getId() == null) {
-                            song.setId(dataSnapshot.getKey());
-                        }
+                        if (song.getId() == null) song.setId(ds.getKey());
                         allSongs.add(song);
                     }
                 }
-                updateDisplayedSongs("");
+                updateDisplayedItems("");
             }
+            @Override public void onCancelled(@NonNull DatabaseError error) {}
+        });
 
+        // Fetch Users
+        usersRef.addValueEventListener(new ValueEventListener() {
             @Override
-            public void onCancelled(@NonNull DatabaseError error) {
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                allUsers.clear();
+                for (DataSnapshot ds : snapshot.getChildren()) {
+                    User user = ds.getValue(User.class);
+                    if (user != null) {
+                        if (user.getUserID() == null) user.setUserID(ds.getKey());
+                        allUsers.add(user);
+                    }
+                }
+                updateDisplayedItems("");
             }
-        };
-        databaseReference.addValueEventListener(valueEventListener);
+            @Override public void onCancelled(@NonNull DatabaseError error) {}
+        });
     }
 
     public void searchSongs(String query) {
-        updateDisplayedSongs(query);
+        updateDisplayedItems(query);
     }
 
-    private void updateDisplayedSongs(String query) {
-        displayedSongs.clear();
-        if (query == null || query.isEmpty()) {
-            displayedSongs.addAll(allSongs);
+    private void updateDisplayedItems(String query) {
+        displayedItems.clear();
+        String lowerQuery = query != null ? query.toLowerCase() : "";
+
+        if (lowerQuery.isEmpty()) {
+            displayedItems.addAll(allSongs);
+            displayedItems.addAll(allUsers);
         } else {
-            String lowerQuery = query.toLowerCase();
+            // Filter Users first
+            for (User user : allUsers) {
+                if (user.getName() != null && user.getName().toLowerCase().contains(lowerQuery)) {
+                    displayedItems.add(user);
+                }
+            }
+            // Then filter Songs
             for (Songs song : allSongs) {
                 if ((song.getTitle() != null && song.getTitle().toLowerCase().contains(lowerQuery)) ||
                     (song.getArtist() != null && song.getArtist().toLowerCase().contains(lowerQuery)) ||
-                    (song.getCategory() != null && song.getCategory().toLowerCase().contains(lowerQuery))) {
-                    displayedSongs.add(song);
+                    (song.getCategory() != null && song.getCategory().toLowerCase().contains(lowerQuery)) ||
+                    (song.getPostContent() != null && song.getPostContent().toLowerCase().contains(lowerQuery))) {
+                    displayedItems.add(song);
                 }
             }
         }
         if (searchSongAdapter != null) {
             searchSongAdapter.notifyDataSetChanged();
-        }
-    }
-
-    @Override
-    public void onStop() {
-        super.onStop();
-        if (databaseReference != null && valueEventListener != null) {
-            databaseReference.removeEventListener(valueEventListener);
         }
     }
 

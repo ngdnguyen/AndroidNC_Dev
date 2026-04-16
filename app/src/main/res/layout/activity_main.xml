@@ -29,9 +29,9 @@
             android:layout_width="match_parent"
             android:layout_height="69dp"
             android:layout_weight="5"
-            android:contentDescription="Voice Search"
+            android:contentDescription="Clear search"
             android:background="@color/primary_pink"
-            app:srcCompat="@drawable/round_mic_24" />
+            app:srcCompat="@drawable/baseline_close_24" />
 
     </LinearLayout>
 

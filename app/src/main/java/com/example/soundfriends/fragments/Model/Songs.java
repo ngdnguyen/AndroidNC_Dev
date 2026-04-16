@@ -9,6 +9,7 @@ public class Songs implements Serializable {
     public String sharedFromUserID, sharedFromUserName, sharedFromUserAvatar, sharedFromPostContent;
     public boolean isShared;
     public long timestamp;
+    public long likes;
     int indexSong;
 
     public Songs() {
@@ -29,6 +30,7 @@ public class Songs implements Serializable {
         this.postContent = postContent;
         this.isShared = false;
         this.timestamp = System.currentTimeMillis();
+        this.likes = 0;
     }
 
     // Constructor cho bài chia sẻ (Facebook style)
@@ -51,6 +53,7 @@ public class Songs implements Serializable {
         this.sharedFromPostContent = sharedFromPostContent;
         this.isShared = true;
         this.timestamp = System.currentTimeMillis();
+        this.likes = 0;
     }
 
     public Songs(int indexSong, String id, String title, String artist, String category, String urlImg, String srl, String userID) {
@@ -63,6 +66,7 @@ public class Songs implements Serializable {
         this.srl = srl;
         this.userID = userID;
         this.timestamp = System.currentTimeMillis();
+        this.likes = 0;
     }
 
     // Getters and Setters
@@ -103,4 +107,7 @@ public class Songs implements Serializable {
 
     public long getTimestamp() { return timestamp; }
     public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
+
+    public long getLikes() { return likes; }
+    public void setLikes(long likes) { this.likes = likes; }
 }

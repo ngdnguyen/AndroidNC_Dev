@@ -1,21 +1,18 @@
 package com.example.soundfriends.adapter;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.RecyclerView;
 
 import android.content.Context;
 import android.content.Intent;
-import android.os.Bundle;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.example.soundfriends.ListSongsActivity;
 import com.example.soundfriends.R;
-import com.example.soundfriends.Song;
 import com.example.soundfriends.fragments.Model.Songs;
 import com.example.soundfriends.utils.ImageProcessor;
 
@@ -40,19 +37,22 @@ public class Main_BestSingersAdapter extends RecyclerView.Adapter<Main_BestSinge
     @Override
     public void onBindViewHolder(@NonNull Main_BestSingersAdapter.MainBestSingerViewHolder holder, int position) {
         Songs song = listSong.get(position);
-        int itemOrder = position;
-
-        handleItemClick(holder, song);
 
         if (song == null){
             return;
         }
-        if(itemOrder >= 0){
-            holder.tvSingerRank.setText(String.valueOf(position+1));
-        }
+        
+        holder.tvSingerRank.setText(String.valueOf(position + 1));
         ImageProcessor imageProcessor = new ImageProcessor();
         imageProcessor.Base64ToImageView(holder.imgSinger, context, song.getUrlImg());
         holder.tvSingerName.setText(song.artist);
+
+        holder.itemView.setOnClickListener(v -> {
+            Intent intent = new Intent(context, ListSongsActivity.class);
+            intent.putExtra("type", "artist");
+            intent.putExtra("value", song.getArtist());
+            context.startActivity(intent);
+        });
     }
 
     @Override
@@ -72,21 +72,5 @@ public class Main_BestSingersAdapter extends RecyclerView.Adapter<Main_BestSinge
             tvSingerRank = itemView.findViewById(R.id.tv_singer_ranking);
             tvSingerName = itemView.findViewById(R.id.tv_best_singer_name);
         }
-    }
-    private void handleItemClick(Main_BestSingersAdapter.MainBestSingerViewHolder holder, Songs model){
-        holder.itemView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-
-                // Create an Intent to open the target Activity
-                Intent intent = new Intent(context, Song.class);
-
-                // Pass any necessary data to the SongActivity (e.g., selected item data)
-                intent.putExtra("songId", model.getId());
-
-                // Start the target Activity
-                context.startActivity(intent);
-            }
-        });
     }
 }
