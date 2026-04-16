@@ -3,19 +3,22 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
     android:orientation="vertical"
     tools:context=".Song">
 
-    <ScrollView
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/songScrollView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="match_parent"
+        android:fillViewport="true">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_horizontal"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:paddingBottom="20dp">
 
 
             <ImageButton
@@ -37,7 +40,9 @@
                 android:layout_marginTop="20dp"
                 android:text="Song title"
                 android:textSize="18sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:paddingHorizontal="20dp"
+                android:gravity="center"/>
 
             <TextView
                 android:id="@+id/txtartist"
@@ -46,6 +51,20 @@
                 android:layout_marginTop="10dp"
                 android:text="Song artist"
                 android:textSize="16sp" />
+
+            <!-- Song Status/Feeling -->
+            <TextView
+                android:id="@+id/tvSongStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:layout_marginHorizontal="30dp"
+                android:text=""
+                android:textSize="14sp"
+                android:textColor="#555555"
+                android:textStyle="italic"
+                android:gravity="center"
+                android:visibility="gone"/>
 
             <androidx.cardview.widget.CardView
                 android:layout_width="wrap_content"
@@ -57,6 +76,7 @@
                     android:id="@+id/imgsong"
                     android:layout_width="250dp"
                     android:layout_height="250dp"
+                    android:scaleType="centerCrop"
                     android:src="@drawable/logo" />
 
             </androidx.cardview.widget.CardView>
@@ -70,7 +90,7 @@
                     android:layout_width="25dp"
                     android:layout_height="25dp"
                     android:layout_marginTop="30dp"
-                    android:src="@drawable/like" />
+                    android:src="@drawable/ic_like_unselected" />
 
                 <TextView
                     android:id="@+id/textlike"
@@ -79,15 +99,24 @@
                     android:layout_marginLeft="2dp"
                     android:layout_marginTop="33dp"
                     android:layout_toRightOf="@id/like"
-                    android:text="123" />
+                    android:text="0" />
+
+                <ImageView
+                    android:id="@+id/btnFavorite"
+                    android:layout_width="25dp"
+                    android:layout_height="25dp"
+                    android:layout_marginLeft="40dp"
+                    android:layout_marginTop="30dp"
+                    android:layout_toRightOf="@+id/textlike"
+                    android:src="@drawable/ic_like_unselected" />
 
                 <ImageView
                     android:id="@+id/phonering"
                     android:layout_width="25dp"
                     android:layout_height="25dp"
-                    android:layout_marginLeft="60dp"
+                    android:layout_marginLeft="40dp"
                     android:layout_marginTop="30dp"
-                    android:layout_toRightOf="@+id/like"
+                    android:layout_toRightOf="@+id/btnFavorite"
                     android:src="@drawable/phonering"
                     app:tint="@color/black" />
 
@@ -95,7 +124,7 @@
                     android:id="@+id/btnDownload"
                     android:layout_width="25dp"
                     android:layout_height="25dp"
-                    android:layout_marginLeft="60dp"
+                    android:layout_marginLeft="40dp"
                     android:layout_marginTop="30dp"
                     android:layout_toRightOf="@+id/phonering"
                     android:src="@drawable/download" />
@@ -196,12 +225,15 @@
 
             </RelativeLayout>
 
+            <!-- Interaction Row for Comments (Always Visible now) -->
+
             <FrameLayout
                 android:id="@+id/comment_fragment_container"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent" />
+                android:layout_height="wrap_content"
+                android:minHeight="400dp" />
         </LinearLayout>
 
-    </ScrollView>
+    </androidx.core.widget.NestedScrollView>
 
 </LinearLayout>

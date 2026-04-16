@@ -7,10 +7,12 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <uses-feature android:name="android.hardware.sensor.accelerometer" />
 
     <application
+        android:name=".SoundFriendsApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -19,16 +21,23 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.SoundFriends"
+        android:usesCleartextTraffic="true"
         tools:targetApi="31">
+
         <activity
-            android:name=".adapter.Main_BestSingersAdapter"
+            android:name=".UserListActivity"
             android:exported="false" />
+
         <activity
-            android:name=".adapter.Main_BestSongsAdapter"
-            android:exported="false" />
+            android:name=".ProfileActivity"
+            android:exported="false"
+            android:label="Trang cá nhân" />
+
         <activity
-            android:name=".adapter.CommentAdapter"
-            android:exported="false" />
+            android:name=".UploadActivity"
+            android:exported="false"
+            android:label="Chia sẻ âm nhạc" />
+
         <activity
             android:name=".auth.Register"
             android:exported="true" />
@@ -43,7 +52,6 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>

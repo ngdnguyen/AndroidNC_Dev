@@ -4,9 +4,9 @@ public class Comment {
     private String commentId, body, userId, username;
     private int likeCount;
     private String timestamp, songId, avatarUrl;
-    private boolean liked;
+    private String parentId; // For nested comments (null if it's a top-level comment)
 
-    public Comment(String commentId, String body, String userId, int likeCount, String timestamp, String songId, String avatarUrl, String username, boolean isLiked) {
+    public Comment(String commentId, String body, String userId, int likeCount, String timestamp, String songId, String avatarUrl, String username, String parentId) {
         this.commentId = commentId;
         this.body = body;
         this.userId = userId;
@@ -15,6 +15,7 @@ public class Comment {
         this.songId = songId;
         this.avatarUrl = avatarUrl;
         this.username = username;
+        this.parentId = parentId;
     }
 
     public Comment() {
@@ -84,12 +85,11 @@ public class Comment {
         this.username = username;
     }
 
-    public boolean isLiked() {
-        return liked;
+    public String getParentId() {
+        return parentId;
     }
 
-    public void setLiked(boolean liked) {
-        this.liked = liked;
+    public void setParentId(String parentId) {
+        this.parentId = parentId;
     }
-
 }

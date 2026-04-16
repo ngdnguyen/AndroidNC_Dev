@@ -7,7 +7,6 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -21,38 +20,34 @@ import com.example.soundfriends.utils.ImageProcessor;
 
 import java.util.List;
 
-public class Main_BestSingersAdapter extends RecyclerView.Adapter<Main_BestSingersAdapter.MainBestSingerViewHolder> {
+public class Main_BestCategoriesAdapter extends RecyclerView.Adapter<Main_BestCategoriesAdapter.MainBestCategoryViewHolder>{
     private Context context;
     private List<Songs> listSong;
 
-    public Main_BestSingersAdapter(Context context, List<Songs> listSong) {
+    public Main_BestCategoriesAdapter(Context context, List<Songs> listSong) {
         this.context = context;
         this.listSong = listSong;
     }
-
     @NonNull
     @Override
-    public Main_BestSingersAdapter.MainBestSingerViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.activity_main_best_singers_adapter, parent, false);
-        return new Main_BestSingersAdapter.MainBestSingerViewHolder(view);
+    public MainBestCategoryViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.activity_main_best_categories_adapter, parent, false);
+        return new Main_BestCategoriesAdapter.MainBestCategoryViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull Main_BestSingersAdapter.MainBestSingerViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull MainBestCategoryViewHolder holder, int position) {
         Songs song = listSong.get(position);
-        int itemOrder = position;
 
         handleItemClick(holder, song);
 
         if (song == null){
             return;
         }
-        if(itemOrder >= 0){
-            holder.tvSingerRank.setText(String.valueOf(position+1));
-        }
+
         ImageProcessor imageProcessor = new ImageProcessor();
-        imageProcessor.Base64ToImageView(holder.imgSinger, context, song.getUrlImg());
-        holder.tvSingerName.setText(song.artist);
+        imageProcessor.Base64ToImageView(holder.imgCategory, context, song.getUrlImg());
+        holder.tvCategory.setText(song.getCategory());
     }
 
     @Override
@@ -62,18 +57,17 @@ public class Main_BestSingersAdapter extends RecyclerView.Adapter<Main_BestSinge
         return 0;
     }
 
-    public class MainBestSingerViewHolder extends RecyclerView.ViewHolder {
-        ImageView imgSinger;
-        TextView tvSingerRank, tvSingerName;
-        public MainBestSingerViewHolder(@NonNull View itemView) {
+    public class MainBestCategoryViewHolder extends RecyclerView.ViewHolder{
+        ImageView imgCategory;
+        TextView tvCategory;
+        public MainBestCategoryViewHolder(@NonNull View itemView) {
             super(itemView);
 
-            imgSinger = itemView.findViewById(R.id.img_best_singer);
-            tvSingerRank = itemView.findViewById(R.id.tv_singer_ranking);
-            tvSingerName = itemView.findViewById(R.id.tv_best_singer_name);
+            imgCategory = itemView.findViewById(R.id.img_best_category);
+            tvCategory = itemView.findViewById(R.id.tv_best_category);
         }
     }
-    private void handleItemClick(Main_BestSingersAdapter.MainBestSingerViewHolder holder, Songs model){
+    private void handleItemClick(Main_BestCategoriesAdapter.MainBestCategoryViewHolder holder, Songs model){
         holder.itemView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

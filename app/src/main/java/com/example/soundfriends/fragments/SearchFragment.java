@@ -2,6 +2,7 @@ package com.example.soundfriends.fragments;
 
 import android.os.Bundle;
 
+import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -12,64 +13,34 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 
 import com.example.soundfriends.R;
-import com.example.soundfriends.adapter.UploadSongs;
+import com.example.soundfriends.adapter.SearchSongAdapter;
 import com.example.soundfriends.fragments.Model.Songs;
 import com.example.soundfriends.utils.WrapContentLinearLayoutManager;
-import com.firebase.ui.database.FirebaseRecyclerOptions;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.Query;
+import com.google.firebase.database.ValueEventListener;
 
-/**
- * A simple {@link Fragment} subclass.
- * Use the {@link SearchFragment#newInstance} factory method to
- * create an instance of this fragment.
- */
+import java.util.ArrayList;
+import java.util.List;
+
 public class SearchFragment extends Fragment implements AdapterView.OnItemSelectedListener {
 
-    // TODO: Rename parameter arguments, choose names that match
-    // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-    private static final String ARG_PARAM1 = "param1";
-    private static final String ARG_PARAM2 = "param2";
-
-    // TODO: Rename and change types of parameters
-    private String mParam1;
-    private String mParam2;
-
     RecyclerView recyclerView;
-    UploadSongs uploadSongs;
-
-
+    SearchSongAdapter searchSongAdapter;
+    List<Songs> allSongs = new ArrayList<>();
+    List<Songs> displayedSongs = new ArrayList<>();
+    DatabaseReference databaseReference;
+    ValueEventListener valueEventListener;
 
     public SearchFragment() {
         // Required empty public constructor
     }
 
-    /**
-     * Use this factory method to create a new instance of
-     * this fragment using the provided parameters.
-     *
-     * @param param1 Parameter 1.
-     * @param param2 Parameter 2.
-     * @return A new instance of fragment SearchFragment.
-     */
-    // TODO: Rename and change types and number of parameters
     public static SearchFragment newInstance(String param1, String param2) {
         SearchFragment fragment = new SearchFragment();
-        Bundle args = new Bundle();
-        args.putString(ARG_PARAM1, param1);
-        args.putString(ARG_PARAM2, param2);
-        fragment.setArguments(args);
         return fragment;
-    }
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (getArguments() != null) {
-            mParam1 = getArguments().getString(ARG_PARAM1);
-            mParam2 = getArguments().getString(ARG_PARAM2);
-        }
     }
 
     @Override
@@ -78,42 +49,76 @@ public class SearchFragment extends Fragment implements AdapterView.OnItemSelect
         // Inflate the layout for this fragment
         View view = inflater.inflate(R.layout.fragment_search, container, false);
 
-        recyclerView =(RecyclerView) view.findViewById(R.id.rcvlist_search);
+        recyclerView = view.findViewById(R.id.rcvlist_search);
         recyclerView.setLayoutManager(new WrapContentLinearLayoutManager(requireContext(), LinearLayoutManager.VERTICAL, false));
 
+        searchSongAdapter = new SearchSongAdapter(requireContext(), displayedSongs);
+        recyclerView.setAdapter(searchSongAdapter);
 
-        // Xây dựng options và thiết lập Adapter
-        FirebaseRecyclerOptions<Songs> options = new FirebaseRecyclerOptions.Builder<Songs>()
-                .setQuery(FirebaseDatabase.getInstance().getReference().child("songs"), Songs.class)
-                .build();
-
-        uploadSongs = new UploadSongs(options);
-        recyclerView.setAdapter(uploadSongs);
-
+        fetchSongs();
 
         return view;
-
     }
 
-    @Override
-    public void onStart() {
-        super.onStart();
-        uploadSongs.startListening();
+    private void fetchSongs() {
+        databaseReference = FirebaseDatabase.getInstance().getReference().child("songs");
+        valueEventListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                allSongs.clear();
+                for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
+                    Songs song = dataSnapshot.getValue(Songs.class);
+                    if (song != null) {
+                        if (song.getId() == null) {
+                            song.setId(dataSnapshot.getKey());
+                        }
+                        allSongs.add(song);
+                    }
+                }
+                updateDisplayedSongs("");
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+            }
+        };
+        databaseReference.addValueEventListener(valueEventListener);
+    }
+
+    public void searchSongs(String query) {
+        updateDisplayedSongs(query);
+    }
+
+    private void updateDisplayedSongs(String query) {
+        displayedSongs.clear();
+        if (query == null || query.isEmpty()) {
+            displayedSongs.addAll(allSongs);
+        } else {
+            String lowerQuery = query.toLowerCase();
+            for (Songs song : allSongs) {
+                if ((song.getTitle() != null && song.getTitle().toLowerCase().contains(lowerQuery)) ||
+                    (song.getArtist() != null && song.getArtist().toLowerCase().contains(lowerQuery)) ||
+                    (song.getCategory() != null && song.getCategory().toLowerCase().contains(lowerQuery))) {
+                    displayedSongs.add(song);
+                }
+            }
+        }
+        if (searchSongAdapter != null) {
+            searchSongAdapter.notifyDataSetChanged();
+        }
     }
 
     @Override
     public void onStop() {
         super.onStop();
-        uploadSongs.stopListening();
+        if (databaseReference != null && valueEventListener != null) {
+            databaseReference.removeEventListener(valueEventListener);
+        }
     }
 
     @Override
-    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-
-    }
+    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {}
 
     @Override
-    public void onNothingSelected(AdapterView<?> parent) {
-
-    }
+    public void onNothingSelected(AdapterView<?> parent) {}
 }

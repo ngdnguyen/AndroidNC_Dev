@@ -6,22 +6,35 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.TextView;
 
 import com.example.soundfriends.adapter.ViewPagerAdapter;
 import com.example.soundfriends.auth.Login;
+import com.example.soundfriends.fragments.HomeFragment;
+import com.example.soundfriends.fragments.Model.User;
+import com.example.soundfriends.fragments.SearchFragment;
 import com.example.soundfriends.utils.ZoomOutPageTransformer;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.navigation.NavigationBarView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 
 public class MainActivity extends AppCompatActivity {
     ViewPager2 viewPager;
     BottomNavigationView bottomNavigationView;
+    AutoCompleteTextView searchBar;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -29,8 +42,11 @@ public class MainActivity extends AppCompatActivity {
 
         viewPager = (ViewPager2) findViewById(R.id.view_pager);
         viewPager.setUserInputEnabled(false);
-//        viewPager.setPageTransformer(new ZoomOutPageTransformer());
         bottomNavigationView = (BottomNavigationView) findViewById(R.id.bottom_nav);
+        searchBar = findViewById(R.id.search_bar);
+
+        // Sync user data to database for profile features
+        syncUserToDatabase();
 
         //set view pager adapter at bottom navigation
         ViewPagerAdapter viewPagerAdapter = new ViewPagerAdapter(this);
@@ -65,5 +81,57 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        searchBar.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                performSearch(s.toString());
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+    }
+
+    private void syncUserToDatabase() {
+        FirebaseUser firebaseUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (firebaseUser != null) {
+            String uid = firebaseUser.getUid();
+            DatabaseReference userRef = FirebaseDatabase.getInstance().getReference("users").child(uid);
+            userRef.addListenerForSingleValueEvent(new ValueEventListener() {
+                @Override
+                public void onDataChange(@NonNull DataSnapshot snapshot) {
+                    if (!snapshot.exists()) {
+                        String name = firebaseUser.getDisplayName();
+                        
+                        // Nếu không có tên hiển thị (thường là đăng ký qua email), tự tạo tên user_xxx
+                        if (name == null || name.isEmpty()) {
+                            // Lấy 4 ký tự cuối của UID để tạo tên duy nhất
+                            String suffix = uid.length() > 4 ? uid.substring(uid.length() - 4) : uid;
+                            name = "user_" + suffix;
+                        }
+
+                        String avatar = firebaseUser.getPhotoUrl() != null ? firebaseUser.getPhotoUrl().toString() : "";
+                        User newUser = new User(uid, name, firebaseUser.getEmail(), avatar);
+                        userRef.setValue(newUser);
+                    }
+                }
+                @Override public void onCancelled(@NonNull DatabaseError error) {}
+            });
+        }
+    }
+
+    private void performSearch(String query) {
+        SearchFragment searchFragment = (SearchFragment) getSupportFragmentManager().findFragmentByTag("f1");
+        if (searchFragment != null) {
+            searchFragment.searchSongs(query);
+        }
+
+        HomeFragment homeFragment = (HomeFragment) getSupportFragmentManager().findFragmentByTag("f0");
+        if (homeFragment != null) {
+            homeFragment.searchSongs(query);
+        }
     }
 }

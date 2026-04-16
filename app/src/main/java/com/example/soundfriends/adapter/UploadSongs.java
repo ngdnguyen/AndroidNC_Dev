@@ -40,41 +40,51 @@ import android.widget.Toast;
 
 public class UploadSongs extends FirebaseRecyclerAdapter<Songs, UploadSongs.myViewHolder> {
 
-    /**
-     * Initialize a {@link RecyclerView.Adapter} that listens to a Firebase query. See
-     * {@link FirebaseRecyclerOptions} for configuration options.
-     *
-     * @param options
-     */
-
-
     private Context context;
+    private boolean isFavoriteList = false;
+
     public UploadSongs(@NonNull FirebaseRecyclerOptions<Songs> options) {
         super(options);
+    }
 
+    public UploadSongs(@NonNull FirebaseRecyclerOptions<Songs> options, boolean isFavoriteList) {
+        super(options);
+        this.isFavoriteList = isFavoriteList;
     }
 
     @Override
     protected void onBindViewHolder(@NonNull myViewHolder holder, int position, @NonNull Songs model) {
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null) return;
         String userIDLogin = currentUser.getUid();
 
         onClickHolder(holder, model);
 
-        if (model.getUserID().equals(userIDLogin)) {
+        if (isFavoriteList || (model.getUserID() != null && model.getUserID().equals(userIDLogin))) {
+            holder.itemView.setVisibility(View.VISIBLE);
+            holder.itemView.setLayoutParams(new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            
             holder.title.setText(model.getTitle());
             holder.artist.setText(model.getArtist());
             holder.category.setText(model.getCategory());
 
-            ImageProcessor imageProcessor = new ImageProcessor();
-            imageProcessor.Base64ToImageView(holder.imageView, holder.imageView.getContext(), model.getUrlImg());
+            if (model.getUrlImg() != null && !model.getUrlImg().isEmpty()) {
+                ImageProcessor imageProcessor = new ImageProcessor();
+                imageProcessor.Base64ToImageView(holder.imageView, holder.imageView.getContext(), model.getUrlImg());
+            } else {
+                holder.imageView.setImageResource(R.drawable.logo);
+            }
+            
+            if (isFavoriteList) {
+                holder.btnPopUp.setVisibility(View.GONE);
+            } else {
+                holder.btnPopUp.setVisibility(View.VISIBLE);
+            }
         } else {
             holder.itemView.setVisibility(View.GONE);
+            holder.itemView.setLayoutParams(new RecyclerView.LayoutParams(0, 0));
         }
     }
-
-
-
 
     @NonNull
     @Override
@@ -84,16 +94,13 @@ public class UploadSongs extends FirebaseRecyclerAdapter<Songs, UploadSongs.myVi
         return new myViewHolder(view);
     }
 
-    class myViewHolder extends RecyclerView.ViewHolder {
-        ImageButton btnPopUp;
-        ImageView imageView;
-
-        TextView title, artist, category, tvsrl;
-        MediaPlayer mediaPlayer;
+    public static class myViewHolder extends RecyclerView.ViewHolder {
+        public ImageButton btnPopUp;
+        public ImageView imageView;
+        public TextView title, artist, category, tvsrl;
 
         public myViewHolder(@NonNull View itemView) {
             super(itemView);
-
             imageView = (ImageView) itemView.findViewById(R.id.img2);
             title = (TextView) itemView.findViewById(R.id.tv_song);
             artist = (TextView) itemView.findViewById(R.id.tv_artist);
@@ -104,32 +111,27 @@ public class UploadSongs extends FirebaseRecyclerAdapter<Songs, UploadSongs.myVi
     }
 
     private void onClickHolder(myViewHolder holder, Songs model) {
-
         holder.itemView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-
-                // Create an Intent to open the target Activity
                 Intent intent = new Intent(context, Song.class);
-
-                // Pass any necessary data to the SongActivity (e.g., selected item data)
                 intent.putExtra("songId", model.getId());
-
-                // Start the target Activity
                 context.startActivity(intent);
             }
         });
         holder.btnPopUp.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                DatabaseReference songRef = getRef(holder.getAbsoluteAdapterPosition());
-                String songRefKey = songRef.getKey();
-
-                //show pop up menu
-                showPopUpMenu(view, model, songRefKey);
+                int position = holder.getAbsoluteAdapterPosition();
+                if (position != RecyclerView.NO_POSITION) {
+                    DatabaseReference songRef = getRef(position);
+                    String songRefKey = songRef.getKey();
+                    showPopUpMenu(view, model, songRefKey);
+                }
             }
         });
     }
+
     private void showPopUpMenu(View view, Songs song, String songRefKey){
         PopupMenu popupMenu = new PopupMenu(view.getContext(), view);
         popupMenu.inflate(R.menu.uploaded_songs_popup_menu);
@@ -139,7 +141,7 @@ public class UploadSongs extends FirebaseRecyclerAdapter<Songs, UploadSongs.myVi
                 if (item.getItemId() == R.id.song_delete_popup){
                     AlertDialog.Builder alertMergeAccounts = new AlertDialog.Builder(context);
                     alertMergeAccounts.setTitle("Thông báo");
-                    alertMergeAccounts.setMessage("Bạn có chắc chắn muốn xoá bài hát " + song.title + "?");
+                    alertMergeAccounts.setMessage("Bạn có chắc chắn muốn xoá bài hát " + song.getTitle() + "?");
                     alertMergeAccounts.setIcon(R.mipmap.ic_launcher_round);
                     alertMergeAccounts.setPositiveButton("Xoá", new DialogInterface.OnClickListener() {
                         @Override
@@ -154,7 +156,6 @@ public class UploadSongs extends FirebaseRecyclerAdapter<Songs, UploadSongs.myVi
                         }
                     });
                     alertMergeAccounts.show();
-
                     return true;
                 }
                 return false;
@@ -166,8 +167,5 @@ public class UploadSongs extends FirebaseRecyclerAdapter<Songs, UploadSongs.myVi
     private void deleteSong(String songRefKey) {
         DatabaseReference songRef = FirebaseDatabase.getInstance().getReference().child("songs").child(songRefKey);
         songRef.removeValue();
-
-        notifyDataSetChanged();
     }
 }
-

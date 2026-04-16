@@ -156,12 +156,6 @@
                 android:layout_below="@id/rl_layout"
                 />
 
-            <ProgressBar
-                android:id="@+id/rcvProgressBar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/tv_uploaded_song" />
-
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rcvlist_song_uploaded"
                 android:layout_width="match_parent"
@@ -170,9 +164,33 @@
                 android:layout_marginTop="1dp"
                 android:paddingLeft="10dp"
                 android:paddingRight="10dp"
+                android:textSize="20sp"
+                />
+
+            <TextView
+                android:id="@+id/tv_favorite_song"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="20dp"
+                android:textColor="@color/black"
+                android:text="Nhạc yêu thích"
+                android:textStyle="bold"
+                android:textSize="20sp"
+                android:layout_below="@id/rcvlist_song_uploaded"
+                />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rcvlist_song_favorite"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@+id/tv_favorite_song"
+                android:layout_marginTop="1dp"
+                android:paddingLeft="10dp"
+                android:paddingRight="10dp"
                 android:layout_marginBottom="68dp"
                 android:textSize="20sp"
                 />
+
         </RelativeLayout>
     </ScrollView>
 
