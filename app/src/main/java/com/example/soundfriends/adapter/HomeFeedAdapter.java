@@ -64,6 +64,15 @@ import com.google.firebase.database.ValueEventListener;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 
+import android.database.Cursor;
+import android.media.MediaMetadataRetriever;
+import android.media.MediaPlayer;
+import android.provider.MediaStore;
+import android.provider.OpenableColumns;
+import android.webkit.MimeTypeMap;
+import com.example.soundfriends.utils.uuid;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
@@ -86,6 +95,65 @@ public class HomeFeedAdapter extends RecyclerView.Adapter<HomeFeedAdapter.ViewHo
     private Runnable updateSeekBarRunnable;
     private boolean isUserSeeking = false;
     private RecyclerView recyclerView;
+
+    // For editing posts
+    private static final int EDIT_PICK_IMAGE_REQUEST = 201;
+    private static final int EDIT_PICK_AUDIO_REQUEST = 202;
+    private Uri editAudioUri;
+    private Bitmap editSongBitmap;
+    private MediaPlayer editPreviewPlayer;
+    private boolean isEditPreviewPlaying = false;
+    private final Handler editPreviewHandler = new Handler(Looper.getMainLooper());
+    private MediaRecorder editMediaRecorder;
+    private String editRecordFilePath;
+    private boolean isEditRecording = false;
+    private boolean isEditPaused = false;
+    private final Handler editTimerHandler = new Handler(Looper.getMainLooper());
+    private long editStartTime = 0L;
+    private long editTimeInMilliseconds = 0L;
+    private long editTimeSwapBuff = 0L;
+
+    private ImageView currentEditIvThumb;
+    private TextView currentEditTvFileName;
+    private EditText currentEditEtTitle, currentEditEtArtist, currentEditEtCategory;
+    private SeekBar currentEditSbPreview;
+    private TextView currentEditTvCurrentTime, currentEditTvTotalTime;
+    private ImageButton currentEditBtnPreviewPlay;
+    private LinearLayout currentEditRecordingLayout;
+    private TextView currentEditTvTimer;
+    private ImageButton currentEditBtnPauseRecord;
+    private ProgressBar currentEditPbUpload;
+
+    private final Runnable editUpdateTimerThread = new Runnable() {
+        public void run() {
+            editTimeInMilliseconds = System.currentTimeMillis() - editStartTime;
+            long updatedTime = editTimeSwapBuff + editTimeInMilliseconds;
+            int secs = (int) (updatedTime / 1000);
+            int mins = secs / 60;
+            secs = secs % 60;
+            if (currentEditTvTimer != null)
+                currentEditTvTimer.setText(String.format(Locale.getDefault(), "%02d:%02d", mins, secs));
+            editTimerHandler.postDelayed(this, 100);
+        }
+    };
+
+    private final Runnable editUpdateSeekBar = new Runnable() {
+        @Override
+        public void run() {
+            if (editPreviewPlayer != null && isEditPreviewPlaying) {
+                try {
+                    int currentPos = editPreviewPlayer.getCurrentPosition();
+                    if (currentEditSbPreview != null) {
+                        currentEditSbPreview.setProgress(currentPos);
+                        currentEditTvCurrentTime.setText(formatDuration(currentPos));
+                    }
+                    editPreviewHandler.postDelayed(this, 500);
+                } catch (Exception e) {
+                    editPreviewHandler.removeCallbacks(this);
+                }
+            }
+        }
+    };
 
     public HomeFeedAdapter(Context context, List<Songs> songsList) {
         this.context = context;
@@ -190,6 +258,7 @@ public class HomeFeedAdapter extends RecyclerView.Adapter<HomeFeedAdapter.ViewHo
 
         fetchUserInfo(song.getUserID(), holder);
         holder.tvPostContent.setText(song.getPostContent());
+        holder.tvPostTime.setText(getRelativeTime(song.getTimestamp()));
         holder.tvPostContent.setVisibility(song.getPostContent() != null && !song.getPostContent().isEmpty() ? View.VISIBLE : View.GONE);
 
         if (song.isShared()) {
@@ -460,10 +529,432 @@ public class HomeFeedAdapter extends RecyclerView.Adapter<HomeFeedAdapter.ViewHo
             popupMenu.getMenu().add("Xóa bài viết");
         } else { popupMenu.getMenu().add("Báo cáo"); }
         popupMenu.setOnMenuItemClickListener(item -> {
-            if (item.getTitle().equals("Xóa bài viết")) showDeleteConfirmDialog(song, position);
+            if (item.getTitle().equals("Xóa bài viết")) {
+                showDeleteConfirmDialog(song, position);
+            } else if (item.getTitle().equals("Chỉnh sửa")) {
+                showEditPostDialog(song, position);
+            } else if (item.getTitle().equals("Báo cáo")) {
+                handleReport(song, position);
+            }
             return true;
         });
         popupMenu.show();
+    }
+
+    private void handleReport(Songs song, int position) {
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null) {
+            Toast.makeText(context, "Vui lòng đăng nhập để báo cáo", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        DatabaseReference reportRef = FirebaseDatabase.getInstance().getReference("reports").child(song.getId());
+        reportRef.child(currentUser.getUid()).setValue(true).addOnSuccessListener(aVoid -> {
+            reportRef.addListenerForSingleValueEvent(new ValueEventListener() {
+                @Override
+                public void onDataChange(@NonNull DataSnapshot snapshot) {
+                    long reportCount = snapshot.getChildrenCount();
+                    if (reportCount >= 3) {
+                        deleteSongSilently(song, position);
+                        Toast.makeText(context, "Bài viết đã bị xóa do vi phạm chính sách (nhiều báo cáo)", Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(context, "Cảm ơn bạn đã báo cáo. Chúng tôi sẽ xem xét bài viết này.", Toast.LENGTH_SHORT).show();
+                    }
+                }
+                @Override public void onCancelled(@NonNull DatabaseError error) {}
+            });
+        }).addOnFailureListener(e -> {
+            Toast.makeText(context, "Lỗi khi báo cáo: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void deleteSongSilently(Songs song, int position) {
+        // Remove from songs node
+        FirebaseDatabase.getInstance().getReference("songs").child(song.getId()).removeValue();
+        
+        // Optionally remove from storage if it's a URL (optional, but good for cleanup)
+        if (song.getSrl() != null && song.getSrl().startsWith("http")) {
+            try {
+                FirebaseStorage.getInstance().getReferenceFromUrl(song.getSrl()).delete();
+            } catch (Exception ignored) {}
+        }
+        
+        // Remove from reports
+        FirebaseDatabase.getInstance().getReference("reports").child(song.getId()).removeValue();
+        
+        // Update UI
+        songsList.remove(position);
+        notifyItemRemoved(position);
+        notifyItemRangeChanged(position, songsList.size());
+    }
+
+    private void showEditPostDialog(Songs song, int position) {
+        editAudioUri = null;
+        editSongBitmap = null;
+        stopEditPreview();
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        View view = LayoutInflater.from(context).inflate(R.layout.dialog_edit_post, null);
+
+        EditText etEditPostContent = view.findViewById(R.id.etEditPostContent);
+        currentEditEtTitle = view.findViewById(R.id.etEditSongTitle);
+        currentEditEtArtist = view.findViewById(R.id.etEditArtist);
+        currentEditEtCategory = view.findViewById(R.id.etEditCategory);
+        currentEditIvThumb = view.findViewById(R.id.ivEditSongThumb);
+        currentEditTvFileName = view.findViewById(R.id.tvEditFileName);
+        currentEditBtnPreviewPlay = view.findViewById(R.id.btnEditPreviewPlay);
+        currentEditSbPreview = view.findViewById(R.id.sbEditPreview);
+        currentEditTvCurrentTime = view.findViewById(R.id.tvEditPreviewCurrentTime);
+        currentEditTvTotalTime = view.findViewById(R.id.tvEditPreviewTotalTime);
+        currentEditRecordingLayout = view.findViewById(R.id.edit_recording_layout);
+        currentEditTvTimer = view.findViewById(R.id.tvEditTimer);
+        currentEditBtnPauseRecord = view.findViewById(R.id.btnEditPauseRecord);
+        currentEditPbUpload = view.findViewById(R.id.pbEditUpload);
+
+        LinearLayout btnEditRecordMusic = view.findViewById(R.id.btnEditRecordMusic);
+        ImageButton btnEditCancelRecord = view.findViewById(R.id.btnEditCancelRecord);
+        ImageButton btnEditDoneRecord = view.findViewById(R.id.btnEditDoneRecord);
+        Button btnSaveEdit = view.findViewById(R.id.btnSaveEdit);
+
+        etEditPostContent.setText(song.getPostContent());
+        currentEditEtTitle.setText(song.getTitle());
+        currentEditEtArtist.setText(song.getArtist());
+        currentEditEtCategory.setText(song.getCategory());
+        loadSongImage(song.getUrlImg(), currentEditIvThumb);
+        currentEditTvFileName.setText("Đang sử dụng file hiện tại");
+
+        currentEditIvThumb.setOnClickListener(v -> chooseImage());
+
+        btnEditRecordMusic.setOnClickListener(v -> {
+            if (isEditRecording) stopEditRecording();
+            else if (checkPermissions()) startEditRecording();
+            else requestPermissions();
+        });
+
+        btnEditRecordMusic.setOnLongClickListener(v -> {
+            chooseAudio();
+            return true;
+        });
+
+        currentEditBtnPauseRecord.setOnClickListener(v -> {
+            if (isEditRecording) {
+                if (!isEditPaused) pauseEditRecording();
+                else resumeEditRecording();
+            }
+        });
+
+        btnEditCancelRecord.setOnClickListener(v -> cancelEditRecording());
+        btnEditDoneRecord.setOnClickListener(v -> stopEditRecording());
+
+        currentEditBtnPreviewPlay.setOnClickListener(v -> toggleEditPreview(song.getSrl()));
+
+        currentEditSbPreview.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser && editPreviewPlayer != null) {
+                    editPreviewPlayer.seekTo(progress);
+                    currentEditTvCurrentTime.setText(formatDuration(progress));
+                }
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        AlertDialog dialog = builder.setView(view).create();
+        dialog.setOnDismissListener(d -> {
+            stopEditPreview();
+            if (isEditRecording) cancelEditRecording();
+        });
+
+        btnSaveEdit.setOnClickListener(v -> {
+            handleSaveEdit(song, position, etEditPostContent.getText().toString().trim(), dialog);
+        });
+
+        dialog.show();
+    }
+
+    private void handleSaveEdit(Songs song, int position, String newContent, AlertDialog dialog) {
+        String newTitle = currentEditEtTitle.getText().toString().trim();
+        String newArtist = currentEditEtArtist.getText().toString().trim();
+        String newCategory = currentEditEtCategory.getText().toString().trim();
+
+        if (newTitle.isEmpty()) {
+            Toast.makeText(context, "Tên bài hát không được để trống", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        currentEditPbUpload.setVisibility(View.VISIBLE);
+
+        if (editAudioUri != null) {
+            String extension = "3gp";
+            String mimeType = context.getContentResolver().getType(editAudioUri);
+            if (mimeType != null) extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType);
+
+            StorageReference fileRef = FirebaseStorage.getInstance().getReference("songs").child(song.getId() + "." + extension);
+            fileRef.putFile(editAudioUri)
+                    .addOnSuccessListener(taskSnapshot -> fileRef.getDownloadUrl().addOnSuccessListener(uri -> {
+                        saveUpdatesToDatabase(song, position, newContent, newTitle, newArtist, newCategory, uri.toString(), dialog);
+                    }))
+                    .addOnFailureListener(e -> {
+                        currentEditPbUpload.setVisibility(View.GONE);
+                        Toast.makeText(context, "Lỗi khi tải file: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    });
+        } else {
+            saveUpdatesToDatabase(song, position, newContent, newTitle, newArtist, newCategory, null, dialog);
+        }
+    }
+
+    private void saveUpdatesToDatabase(Songs song, int position, String content, String title, String artist, String category, String audioUrl, AlertDialog dialog) {
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("postContent", content);
+        updates.put("title", title);
+        updates.put("artist", artist);
+        updates.put("category", category);
+        if (audioUrl != null) updates.put("srl", audioUrl);
+
+        if (editSongBitmap != null) {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            editSongBitmap.compress(Bitmap.CompressFormat.JPEG, 70, baos);
+            String base64Image = Base64.encodeToString(baos.toByteArray(), Base64.DEFAULT);
+            updates.put("urlImg", base64Image);
+            song.setUrlImg(base64Image);
+        }
+
+        FirebaseDatabase.getInstance().getReference("songs").child(song.getId())
+                .updateChildren(updates)
+                .addOnSuccessListener(aVoid -> {
+                    if (currentEditPbUpload != null) currentEditPbUpload.setVisibility(View.GONE);
+                    Toast.makeText(context, "Cập nhật thành công", Toast.LENGTH_SHORT).show();
+                    song.setPostContent(content);
+                    song.setTitle(title);
+                    song.setArtist(artist);
+                    song.setCategory(category);
+                    if (audioUrl != null) song.setSrl(audioUrl);
+                    notifyItemChanged(position);
+                    dialog.dismiss();
+                })
+                .addOnFailureListener(e -> {
+                    if (currentEditPbUpload != null) currentEditPbUpload.setVisibility(View.GONE);
+                    Toast.makeText(context, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void chooseImage() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        if (context instanceof Activity) ((Activity) context).startActivityForResult(intent, EDIT_PICK_IMAGE_REQUEST);
+    }
+
+    private void chooseAudio() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("audio/*");
+        if (context instanceof Activity) ((Activity) context).startActivityForResult(intent, EDIT_PICK_AUDIO_REQUEST);
+    }
+
+    private void toggleEditPreview(String currentUrl) {
+        if (isEditPreviewPlaying) pauseEditPreview();
+        else startEditPreview(currentUrl);
+    }
+
+    private void startEditPreview(String currentUrl) {
+        HomeFeedAdapter.stopAllMusic();
+        UploadActivity.stopAllPreview();
+
+        if (editPreviewPlayer == null) {
+            editPreviewPlayer = new MediaPlayer();
+            try {
+                if (editAudioUri != null) editPreviewPlayer.setDataSource(context, editAudioUri);
+                else if (currentUrl != null && !currentUrl.isEmpty()) editPreviewPlayer.setDataSource(currentUrl);
+                else return;
+
+                editPreviewPlayer.prepare();
+                currentEditSbPreview.setMax(editPreviewPlayer.getDuration());
+                currentEditTvTotalTime.setText(formatDuration(editPreviewPlayer.getDuration()));
+                editPreviewPlayer.setOnCompletionListener(mp -> {
+                    isEditPreviewPlaying = false;
+                    currentEditBtnPreviewPlay.setImageResource(R.drawable.play);
+                    currentEditSbPreview.setProgress(0);
+                    currentEditTvCurrentTime.setText("00:00");
+                    editPreviewHandler.removeCallbacks(editUpdateSeekBar);
+                });
+            } catch (IOException e) {
+                Toast.makeText(context, "Không thể phát bản nhạc này", Toast.LENGTH_SHORT).show();
+                return;
+            }
+        }
+        editPreviewPlayer.start();
+        isEditPreviewPlaying = true;
+        currentEditBtnPreviewPlay.setImageResource(R.drawable.pause);
+        editPreviewHandler.post(editUpdateSeekBar);
+    }
+
+    private void pauseEditPreview() {
+        if (editPreviewPlayer != null && editPreviewPlayer.isPlaying()) {
+            editPreviewPlayer.pause();
+        }
+        isEditPreviewPlaying = false;
+        if (currentEditBtnPreviewPlay != null) currentEditBtnPreviewPlay.setImageResource(R.drawable.play);
+        editPreviewHandler.removeCallbacks(editUpdateSeekBar);
+    }
+
+    private void stopEditPreview() {
+        if (editPreviewPlayer != null) {
+            try {
+                if (editPreviewPlayer.isPlaying()) editPreviewPlayer.stop();
+                editPreviewPlayer.release();
+            } catch (Exception ignored) {}
+            editPreviewPlayer = null;
+        }
+        isEditPreviewPlaying = false;
+        if (currentEditBtnPreviewPlay != null) currentEditBtnPreviewPlay.setImageResource(R.drawable.play);
+        editPreviewHandler.removeCallbacks(editUpdateSeekBar);
+        if (currentEditSbPreview != null) currentEditSbPreview.setProgress(0);
+        if (currentEditTvCurrentTime != null) currentEditTvCurrentTime.setText("00:00");
+    }
+
+    private void startEditRecording() {
+        editRecordFilePath = context.getExternalCacheDir().getAbsolutePath() + "/edit_recorded_audio.3gp";
+        editMediaRecorder = new MediaRecorder();
+        editMediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+        editMediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
+        editMediaRecorder.setOutputFile(editRecordFilePath);
+        editMediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+        try {
+            stopEditPreview();
+            HomeFeedAdapter.stopAllMusic();
+            editMediaRecorder.prepare();
+            editMediaRecorder.start();
+            isEditRecording = true;
+            isEditPaused = false;
+            currentEditRecordingLayout.setVisibility(View.VISIBLE);
+            editStartTime = System.currentTimeMillis();
+            editTimeSwapBuff = 0L;
+            editTimerHandler.postDelayed(editUpdateTimerThread, 0);
+            currentEditBtnPauseRecord.setImageResource(R.drawable.ic_pause);
+        } catch (IOException e) { e.printStackTrace(); }
+    }
+
+    private void stopEditRecording() {
+        if (editMediaRecorder != null) {
+            try { editMediaRecorder.stop(); } catch (RuntimeException ignored) {}
+            editMediaRecorder.release();
+            editMediaRecorder = null;
+            isEditRecording = false;
+            isEditPaused = false;
+            editTimerHandler.removeCallbacks(editUpdateTimerThread);
+            currentEditRecordingLayout.setVisibility(View.GONE);
+            File recordedFile = new File(editRecordFilePath);
+            editAudioUri = Uri.fromFile(recordedFile);
+            currentEditTvFileName.setText("Bản ghi âm mới");
+        }
+    }
+
+    private void pauseEditRecording() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N && editMediaRecorder != null) {
+            editMediaRecorder.pause();
+            isEditPaused = true;
+            editTimeSwapBuff += editTimeInMilliseconds;
+            editTimerHandler.removeCallbacks(editUpdateTimerThread);
+            currentEditBtnPauseRecord.setImageResource(R.drawable.play);
+        }
+    }
+
+    private void resumeEditRecording() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N && editMediaRecorder != null) {
+            editMediaRecorder.resume();
+            isEditPaused = false;
+            editStartTime = System.currentTimeMillis();
+            editTimerHandler.postDelayed(editUpdateTimerThread, 0);
+            currentEditBtnPauseRecord.setImageResource(R.drawable.ic_pause);
+        }
+    }
+
+    private void cancelEditRecording() {
+        if (editMediaRecorder != null) {
+            try { editMediaRecorder.stop(); } catch (RuntimeException ignored) {}
+            editMediaRecorder.release();
+            editMediaRecorder = null;
+        }
+        isEditRecording = false;
+        isEditPaused = false;
+        editTimerHandler.removeCallbacks(editUpdateTimerThread);
+        currentEditRecordingLayout.setVisibility(View.GONE);
+        if (editRecordFilePath != null) {
+            File file = new File(editRecordFilePath);
+            if (file.exists()) file.delete();
+        }
+    }
+
+    private boolean checkPermissions() {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestPermissions() {
+        if (context instanceof Activity) {
+            ActivityCompat.requestPermissions((Activity) context, new String[]{Manifest.permission.RECORD_AUDIO}, 200);
+        }
+    }
+
+    private void extractMetadata(Uri uri) {
+        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        try {
+            retriever.setDataSource(context, uri);
+            String title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE);
+            String artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST);
+            String genre = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE);
+            byte[] art = retriever.getEmbeddedPicture();
+
+            if (title != null && !title.isEmpty() && currentEditEtTitle != null) currentEditEtTitle.setText(title);
+            if (artist != null && !artist.isEmpty() && currentEditEtArtist != null) currentEditEtArtist.setText(artist);
+            if (genre != null && !genre.isEmpty() && currentEditEtCategory != null) currentEditEtCategory.setText(genre);
+
+            if (art != null) {
+                editSongBitmap = BitmapFactory.decodeByteArray(art, 0, art.length);
+                if (currentEditIvThumb != null) currentEditIvThumb.setImageBitmap(editSongBitmap);
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        finally { try { retriever.release(); } catch (IOException ignored) {} }
+    }
+
+    private String getFileName(Uri uri) {
+        String result = null;
+        if (uri.getScheme().equals("content")) {
+            try (Cursor cursor = context.getContentResolver().query(uri, null, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                    if (index != -1) result = cursor.getString(index);
+                }
+            }
+        }
+        if (result == null) {
+            result = uri.getPath();
+            if (result != null) {
+                int cut = result.lastIndexOf('/');
+                if (cut != -1) result = result.substring(cut + 1);
+            }
+        }
+        return result;
+    }
+
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (resultCode != Activity.RESULT_OK || data == null) return;
+
+        if (requestCode == EDIT_PICK_IMAGE_REQUEST) {
+            Uri imageUri = data.getData();
+            if (imageUri != null) {
+                try {
+                    InputStream inputStream = context.getContentResolver().openInputStream(imageUri);
+                    editSongBitmap = BitmapFactory.decodeStream(inputStream);
+                    if (currentEditIvThumb != null) currentEditIvThumb.setImageBitmap(editSongBitmap);
+                } catch (IOException e) { e.printStackTrace(); }
+            }
+        } else if (requestCode == EDIT_PICK_AUDIO_REQUEST) {
+            editAudioUri = data.getData();
+            if (editAudioUri != null) {
+                if (currentEditTvFileName != null) currentEditTvFileName.setText(getFileName(editAudioUri));
+                extractMetadata(editAudioUri);
+                stopEditPreview();
+            }
+        }
     }
 
     private void showDeleteConfirmDialog(Songs song, int position) {
@@ -519,12 +1010,25 @@ public class HomeFeedAdapter extends RecyclerView.Adapter<HomeFeedAdapter.ViewHo
         });
     }
 
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {}
+    private String getRelativeTime(long timestamp) {
+        if (timestamp <= 0) return "Gần đây";
+        
+        long now = System.currentTimeMillis();
+        long diff = now - timestamp;
+        
+        if (diff < 60000) return "Vừa xong";
+        if (diff < 3600000) return (diff / 60000) + " phút trước";
+        if (diff < 86400000) return (diff / 3600000) + " giờ trước";
+        if (diff < 604800000) return (diff / 86400000) + " ngày trước";
+        
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault());
+        return sdf.format(new java.util.Date(timestamp));
+    }
 
     @Override public int getItemCount() { return songsList.size(); }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView tvUserName, tvSongTitle, tvArtist, tvPostContent, tvCurrentTime, tvTotalTime, tvActionText;
+        TextView tvUserName, tvSongTitle, tvArtist, tvPostContent, tvCurrentTime, tvTotalTime, tvActionText, tvPostTime;
         TextView tvLikeCount, tvCommentCount, tvShareCount;
         TextView tvOriginalUserName, tvOriginalPostContent, tvSharedSongTitle, tvSharedArtist, tvCurrentTimeShared, tvTotalTimeShared;
         ImageView ivUserAvatar, ivSongThumb, ivLike, ivOriginalUserAvatar, ivSharedSongThumb;
@@ -536,6 +1040,7 @@ public class HomeFeedAdapter extends RecyclerView.Adapter<HomeFeedAdapter.ViewHo
             super(itemView);
             tvUserName = itemView.findViewById(R.id.tvUserName);
             tvActionText = itemView.findViewById(R.id.tvActionText);
+            tvPostTime = itemView.findViewById(R.id.tvPostTime);
             tvPostContent = itemView.findViewById(R.id.tvPostContent);
             tvSongTitle = itemView.findViewById(R.id.tvSongTitle);
             tvArtist = itemView.findViewById(R.id.tvArtist);
