@@ -18,6 +18,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.soundfriends.MainActivity;
@@ -71,6 +72,14 @@ public class Login extends AppCompatActivity {
         pbLoadLogin = (ProgressBar) findViewById(R.id.pbLoadLogin);
         btnLogIn = (Button) findViewById(R.id.btnLogin);
         btnLoginWithGoogle = (ImageView) findViewById(R.id.logInWithGoogle);
+        TextView tvLoginTerms = findViewById(R.id.tvLoginTerms);
+
+        tvLoginTerms.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showTermsDialog();
+            }
+        });
 
         //getFirebaseAuth Instance
         firebaseAuth = FirebaseAuth.getInstance();
@@ -152,5 +161,21 @@ public class Login extends AppCompatActivity {
                 activityResultLauncher.launch(GoogleSignInIntent);
             }
         });
+    }
+
+    private void showTermsDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Điều khoản và Chính sách");
+        builder.setMessage("1. Bạn phải tôn trọng quyền sở hữu trí tuệ của người khác.\n" +
+                "2. Không đăng tải nội dung vi phạm pháp luật.\n" +
+                "3. Chúng tôi có quyền xóa bỏ nội dung không phù hợp.\n" +
+                "4. Dữ liệu cá nhân của bạn sẽ được bảo mật theo chính sách của chúng tôi.");
+        builder.setPositiveButton("Đã hiểu", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+            }
+        });
+        builder.show();
     }
 }

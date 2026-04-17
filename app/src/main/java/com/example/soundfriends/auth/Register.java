@@ -14,9 +14,12 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.soundfriends.MainActivity;
@@ -44,6 +47,10 @@ public class Register extends AppCompatActivity {
     ImageView btnRegisterWithGoogle;
     FirebaseAuth firebaseAuth;
     ProgressBar pbLoadRegister;
+    CheckBox cbTerms;
+    TextView tvTerms;
+    boolean isTermsRead = false;
+    private Toast mToast;
 
     GoogleSignInOptions googleSignInOptions;
     GoogleSignInClient googleSignInClient;
@@ -71,6 +78,26 @@ public class Register extends AppCompatActivity {
         pbLoadRegister = (ProgressBar) findViewById(R.id.pbLoadRegister);
         btnLogIn = (Button) findViewById(R.id.btnLoginInRegister);
         btnRegisterWithGoogle = (ImageView) findViewById(R.id.btnRegisterWithGoogle);
+        cbTerms = findViewById(R.id.cbTerms);
+        tvTerms = findViewById(R.id.tvTerms);
+
+        // Xử lý khi nhấn vào Checkbox
+        cbTerms.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!isTermsRead) {
+                    cbTerms.setChecked(false); // Bỏ tích nếu chưa đọc
+                    showToast("Vui lòng đọc 'Điều khoản và Chính sách'");
+                }
+            }
+        });
+
+        tvTerms.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showTermsDialog();
+            }
+        });
 
         //getFirebaseAuth Instance
         firebaseAuth = FirebaseAuth.getInstance();
@@ -93,11 +120,15 @@ public class Register extends AppCompatActivity {
                 password2 = edtPassword2.getText().toString();
 
                 if(TextUtils.isEmpty(email)||TextUtils.isEmpty(password)||TextUtils.isEmpty(password2)){
-                    Toast.makeText(Register.this, "Vui lòng điền đầy đủ thông tin", Toast.LENGTH_SHORT).show();
+                    showToast("Vui lòng điền đầy đủ thông tin");
+                    return;
+                }
+                if (!isTermsRead || !cbTerms.isChecked()) {
+                    showToast("Bạn phải đồng ý với điều khoản dịch vụ");
                     return;
                 }
                 if(!password.equals(password2)){
-                    Toast.makeText(Register.this, "Mật khẩu nhập lại không trùng khớp với Mật khẩu đã nhập", Toast.LENGTH_SHORT).show();
+                    showToast("Mật khẩu nhập lại không trùng khớp");
                     return;
                 }
 
@@ -111,8 +142,7 @@ public class Register extends AppCompatActivity {
                                     // Sign in success, update UI with the signed-in user's information
                                     FirebaseUser user = firebaseAuth.getCurrentUser();
                                     // If sign in success, display a message to the user.
-                                    Toast.makeText(Register.this, "Đăng ký thành công",
-                                            Toast.LENGTH_SHORT).show();
+                                    showToast("Đăng ký thành công");
                                     sharedAuthMethods sharedAuthMethods = new sharedAuthMethods();
                                     sharedAuthMethods.goHomeActivity(Register.this);
                                 } else {
@@ -120,8 +150,7 @@ public class Register extends AppCompatActivity {
                                     FirebaseAuthException exception = (FirebaseAuthException) task.getException();
                                     //validate
                                     String errorMessage = validator.validatorMessage(exception.getErrorCode());
-                                    Toast.makeText(Register.this, errorMessage,
-                                            Toast.LENGTH_LONG).show();
+                                    showToast(errorMessage);
                                 }
                                 //hide loading state
                                 ToggleShowHideUI.toggleShowUI(false,pbLoadRegister);
@@ -151,9 +180,39 @@ public class Register extends AppCompatActivity {
         btnRegisterWithGoogle.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (!isTermsRead || !cbTerms.isChecked()) {
+                    showToast("Bạn phải đồng ý với điều khoản dịch vụ trước khi tiếp tục với Google");
+                    return;
+                }
                 Intent GoogleSignInIntent = googleSignInClient.getSignInIntent();
                 activityResultLauncher.launch(GoogleSignInIntent);
-            };
+            }
         });
+    }
+
+    private void showToast(String message) {
+        if (mToast != null) {
+            mToast.cancel();
+        }
+        mToast = Toast.makeText(Register.this, message, Toast.LENGTH_SHORT);
+        mToast.show();
+    }
+
+    private void showTermsDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Điều khoản và Chính sách");
+        builder.setMessage("1. Bạn phải tôn trọng quyền sở hữu trí tuệ của người khác.\n" +
+                "2. Không đăng tải nội dung vi phạm pháp luật.\n" +
+                "3. Chúng tôi có quyền xóa bỏ nội dung không phù hợp.\n" +
+                "4. Dữ liệu cá nhân của bạn sẽ được bảo mật theo chính sách của chúng tôi.");
+        builder.setPositiveButton("Đã hiểu", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                isTermsRead = true;
+                cbTerms.setEnabled(true); // Cho phép người dùng tích vào checkbox
+                dialog.dismiss();
+            }
+        });
+        builder.show();
     }
 }
