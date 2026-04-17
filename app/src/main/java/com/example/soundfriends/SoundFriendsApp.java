@@ -11,7 +11,7 @@ import com.google.firebase.storage.FirebaseStorage;
 
 public class SoundFriendsApp extends Application {
 
-    public static final boolean USE_EMULATOR = true;  //true để dùng firebase emulater, false dùng firebase thật
+    public static final boolean USE_EMULATOR = false;  //true để dùng firebase emulater, false dùng firebase thật
     public static final String EMULATOR_HOST = "10.201.55.223";
 
     @Override
