@@ -228,16 +228,21 @@ public class HomeFragment extends Fragment {
         List<Songs> otherSongs = new ArrayList<>();
 
         for (Songs song : allSongs) {
-            if (followingIds.contains(song.getUserID())) followedSongs.add(song);
-            else otherSongs.add(song);
+            if (followingIds.contains(song.getUserID())) {
+                followedSongs.add(song);
+            } else {
+                otherSongs.add(song);
+            }
         }
 
-        // Sort: Likes + Following Priority
-        Collections.sort(followedSongs, (s1, s2) -> Long.compare(s2.getLikes(), s1.getLikes()));
-        Collections.sort(otherSongs, (s1, s2) -> Long.compare(s2.getLikes(), s1.getLikes()));
+        // Sort both lists by Timestamp descending (Newest first)
+        Collections.sort(followedSongs, (s1, s2) -> Long.compare(s2.getTimestamp(), s1.getTimestamp()));
+        Collections.sort(otherSongs, (s1, s2) -> Long.compare(s2.getTimestamp(), s1.getTimestamp()));
 
         allFeedSongs.clear();
+        // Priority 1: Followed people's posts (Newest first)
         allFeedSongs.addAll(followedSongs);
+        // Priority 2: Other people's posts (Newest first)
         allFeedSongs.addAll(otherSongs);
 
         feedSongs.clear();
