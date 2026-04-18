@@ -2,6 +2,9 @@ package com.example.soundfriends;
 
 import android.app.Application;
 import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatDelegate;
+
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.auth.FirebaseAuth;
@@ -17,7 +20,9 @@ public class SoundFriendsApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        
+        // Ép buộc ứng dụng luôn ở chế độ Light Mode
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
+
         if (USE_EMULATOR) {
             // Xóa cấu hình mặc định từ google-services.json để tránh xung đột
             try {

@@ -61,22 +61,25 @@
                             android:layout_height="wrap_content"
                             android:text="Vừa chia sẻ một bài hát"
                             android:textSize="12sp"
-                            android:textColor="#777777"/>
+                            android:textColor="#777777"
+                            android:includeFontPadding="false"/>
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text=" • "
                             android:textColor="#777777"
-                            android:textSize="12sp" />
+                            android:textSize="12sp"
+                            android:includeFontPadding="false" />
 
                         <TextView
                             android:id="@+id/tvPostTime"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="1 giờ trước"
-                            android:textSize="11sp"
-                            android:textColor="#999999"/>
+                            android:textSize="12sp"
+                            android:textColor="#999999"
+                            android:includeFontPadding="false"/>
                     </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
@@ -383,82 +386,91 @@
         <!-- Interaction Buttons -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="44dp"
             android:layout_marginTop="4dp"
+            android:gravity="center_vertical"
             android:orientation="horizontal">
 
             <LinearLayout
                 android:id="@+id/llLike"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:gravity="center"
                 android:orientation="horizontal"
-                android:padding="8dp"
                 android:background="?attr/selectableItemBackground">
 
                 <ImageView
                     android:id="@+id/ivLike"
                     android:layout_width="20dp"
                     android:layout_height="20dp"
-                    android:src="@drawable/ic_like_unselected" />
+                    android:src="@drawable/ic_like_unselected"
+                    app:tint="#000000" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
                     android:text="Thích"
+                    android:textColor="#000000"
                     android:textStyle="bold"
-                    android:textSize="13sp"/>
+                    android:textSize="13sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"/>
             </LinearLayout>
 
             <LinearLayout
                 android:id="@+id/llComment"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:layout_weight="1.2"
                 android:gravity="center"
                 android:orientation="horizontal"
-                android:padding="8dp"
                 android:background="?attr/selectableItemBackground">
 
                 <ImageView
                     android:layout_width="20dp"
                     android:layout_height="20dp"
-                    android:src="@drawable/send" />
+                    android:src="@drawable/send"
+                    app:tint="#000000" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
                     android:text="Bình luận"
+                    android:textColor="#000000"
                     android:textStyle="bold"
-                    android:textSize="13sp"/>
+                    android:textSize="13sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"/>
             </LinearLayout>
 
             <LinearLayout
                 android:id="@+id/llShare"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
                 android:gravity="center"
                 android:orientation="horizontal"
-                android:padding="8dp"
                 android:background="?attr/selectableItemBackground">
 
                 <ImageView
                     android:layout_width="20dp"
                     android:layout_height="20dp"
-                    android:src="@android:drawable/ic_menu_share"
-                    app:tint="#777777"/>
+                    android:src="@drawable/ic_share_feed"
+                    app:tint="#000000"/>
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
                     android:text="Chia sẻ"
+                    android:textColor="#000000"
                     android:textStyle="bold"
-                    android:textSize="13sp"/>
+                    android:textSize="13sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"/>
             </LinearLayout>
 
         </LinearLayout>
