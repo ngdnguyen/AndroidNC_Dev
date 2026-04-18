@@ -142,8 +142,10 @@ public class CommentsFragment extends Fragment {
                         if (commentId != null) {
                             commentReferences.child(commentId).setValue(comment).addOnSuccessListener(aVoid -> {
                                 edtComment.setText("");
+                                String savedParentId = replyingToCommentId;
                                 replyingToCommentId = null;
                                 commentInputLayout.setHint("Bình luận với tư cách " + name);
+                                sendCommentNotification(currentSongId, commentBody, savedParentId);
                             });
                         }
                     }
@@ -197,6 +199,73 @@ public class CommentsFragment extends Fragment {
                 resultList.add(reply);
                 addReplies(reply.getCommentId(), allReplies, resultList);
             }
+        }
+    }
+
+    private void sendCommentNotification(String songId, String commentContent, String parentId) {
+        FirebaseUser currentUser = auth.getCurrentUser();
+        if (currentUser == null) return;
+
+        // Fetch current user details for the notification
+        FirebaseDatabase.getInstance().getReference("users").child(currentUser.getUid())
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot userSnapshot) {
+                        User sender = userSnapshot.getValue(User.class);
+                        String name = (sender != null) ? sender.getName() : "Người dùng";
+                        String avatar = (sender != null) ? sender.getAvatar() : "";
+
+                        // 1. Notify the song owner
+                        DatabaseReference songRef = FirebaseDatabase.getInstance().getReference("songs").child(songId);
+                        songRef.addListenerForSingleValueEvent(new ValueEventListener() {
+                            @Override
+                            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                                String songOwnerId = snapshot.child("userID").getValue(String.class);
+                                if (songOwnerId != null && !songOwnerId.equals(currentUser.getUid())) {
+                                    sendPushNotification(songOwnerId, currentUser.getUid(), name, avatar, "comment",
+                                            "đã bình luận về bài hát của bạn: " + commentContent, songId);
+                                }
+                            }
+                            @Override public void onCancelled(@NonNull DatabaseError error) {}
+                        });
+
+                        // 2. Notify the parent comment owner if it's a reply
+                        if (parentId != null) {
+                            DatabaseReference parentCommentRef = FirebaseDatabase.getInstance().getReference("comments").child(parentId);
+                            parentCommentRef.addListenerForSingleValueEvent(new ValueEventListener() {
+                                @Override
+                                public void onDataChange(@NonNull DataSnapshot snapshot) {
+                                    String parentCommentOwnerId = snapshot.child("userId").getValue(String.class);
+                                    if (parentCommentOwnerId != null && !parentCommentOwnerId.equals(currentUser.getUid())) {
+                                        sendPushNotification(parentCommentOwnerId, currentUser.getUid(), name, avatar, "comment",
+                                                "đã trả lời bình luận của bạn: " + commentContent, songId);
+                                    }
+                                }
+                                @Override public void onCancelled(@NonNull DatabaseError error) {}
+                            });
+                        }
+                    }
+                    @Override public void onCancelled(@NonNull DatabaseError error) {}
+                });
+    }
+
+    private void sendPushNotification(String targetUserId, String fromUserId, String fromUserName, String fromUserAvatar, String type, String message, String songId) {
+        DatabaseReference notificationRef = FirebaseDatabase.getInstance().getReference("notifications").child(targetUserId);
+        String notificationId = notificationRef.push().getKey();
+
+        java.util.Map<String, Object> notificationData = new java.util.HashMap<>();
+        notificationData.put("id", notificationId);
+        notificationData.put("fromUserId", fromUserId);
+        notificationData.put("fromUserName", fromUserName);
+        notificationData.put("fromUserAvatar", fromUserAvatar);
+        notificationData.put("type", type);
+        notificationData.put("message", message);
+        notificationData.put("songId", songId);
+        notificationData.put("timestamp", System.currentTimeMillis());
+        notificationData.put("isRead", false);
+
+        if (notificationId != null) {
+            notificationRef.child(notificationId).setValue(notificationData);
         }
     }
 

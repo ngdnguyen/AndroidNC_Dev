@@ -47,6 +47,9 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.StorageTask;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.ValueEventListener;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -511,6 +514,7 @@ public class UploadActivity extends AppCompatActivity {
                                 .addOnSuccessListener(aVoid -> {
                                     progressBar.setVisibility(View.GONE);
                                     Toast.makeText(UploadActivity.this, "Đăng bài thành công!", Toast.LENGTH_SHORT).show();
+                                    sendNewSongNotification(title);
                                     finish();
                                 })
                                 .addOnFailureListener(e -> {
@@ -531,6 +535,40 @@ public class UploadActivity extends AppCompatActivity {
                 });
     }
     
+    private void sendNewSongNotification(String songTitle) {
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null) return;
+
+        DatabaseReference followersRef = FirebaseDatabase.getInstance().getReference("followers").child(currentUser.getUid());
+        followersRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                for (DataSnapshot ds : snapshot.getChildren()) {
+                    String followerId = ds.getKey();
+                    if (followerId != null) {
+                        DatabaseReference notificationRef = FirebaseDatabase.getInstance().getReference("notifications").child(followerId);
+                        String notificationId = notificationRef.push().getKey();
+
+                        java.util.Map<String, Object> notificationData = new java.util.HashMap<>();
+                        notificationData.put("id", notificationId);
+                        notificationData.put("fromUserId", currentUser.getUid());
+                        notificationData.put("fromUserName", currentUserName);
+                        notificationData.put("fromUserAvatar", currentUserAvatar);
+                        notificationData.put("type", "new_post");
+                        notificationData.put("message", "vừa đăng bài hát mới: " + songTitle);
+                        notificationData.put("timestamp", System.currentTimeMillis());
+                        notificationData.put("isRead", false);
+
+                        if (notificationId != null) {
+                            notificationRef.child(notificationId).setValue(notificationData);
+                        }
+                    }
+                }
+            }
+            @Override public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
     private String formatTime(int ms) {
         int seconds = (ms / 1000) % 60;
         int minutes = (ms / (1000 * 60)) % 60;

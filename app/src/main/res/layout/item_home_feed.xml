@@ -402,8 +402,8 @@
 
                 <ImageView
                     android:id="@+id/ivLike"
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
                     android:src="@drawable/ic_like_unselected"
                     app:tint="#000000" />
 
@@ -423,15 +423,16 @@
                 android:id="@+id/llComment"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
-                android:layout_weight="1.2"
+                android:layout_weight="1"
                 android:gravity="center"
                 android:orientation="horizontal"
                 android:background="?attr/selectableItemBackground">
 
                 <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:src="@drawable/send"
+                    android:layout_width="24dp"
+                    android:layout_height="18dp"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/ic_comment"
                     app:tint="#000000" />
 
                 <TextView
@@ -456,8 +457,8 @@
                 android:background="?attr/selectableItemBackground">
 
                 <ImageView
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
+                    android:layout_width="23dp"
+                    android:layout_height="23dp"
                     android:src="@drawable/ic_share_feed"
                     app:tint="#000000"/>
 

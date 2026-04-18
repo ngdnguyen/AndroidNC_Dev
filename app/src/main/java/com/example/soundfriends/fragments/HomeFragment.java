@@ -15,6 +15,8 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
+import com.example.soundfriends.MainActivity;
+import com.example.soundfriends.NotificationActivity;
 import com.example.soundfriends.ProfileActivity;
 import com.example.soundfriends.R;
 import com.example.soundfriends.UploadActivity;
@@ -60,7 +62,8 @@ public class HomeFragment extends Fragment {
     List<Songs> allFeedSongs = new ArrayList<>();
 
     CircleImageView ivUserAvatarHeader;
-    TextView tvUserNameHeader, tvShareMusicPrompt;
+    TextView tvUserNameHeader, tvShareMusicPrompt, tvNotificationBadge;
+    View rlNotification;
 
     public HomeFragment() {
         // Required empty public constructor
@@ -103,8 +106,46 @@ public class HomeFragment extends Fragment {
         swipeRefreshLayout = view.findViewById(R.id.swipeRefreshLayout);
 
         ivUserAvatarHeader = view.findViewById(R.id.ivUserAvatarHeader);
-        tvUserNameHeader = tvUserNameHeader = view.findViewById(R.id.tvUserNameHeader);
+        tvUserNameHeader = view.findViewById(R.id.tvUserNameHeader);
         tvShareMusicPrompt = view.findViewById(R.id.tvShareMusicPrompt);
+        tvNotificationBadge = view.findViewById(R.id.tvNotificationBadge);
+        rlNotification = view.findViewById(R.id.rlNotification);
+
+        rlNotification.setOnClickListener(v -> {
+            Intent intent = new Intent(getActivity(), NotificationActivity.class);
+            startActivity(intent);
+        });
+
+        listenForNotifications();
+    }
+
+    private void listenForNotifications() {
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        if (user == null) return;
+
+        DatabaseReference ref = FirebaseDatabase.getInstance().getReference("notifications").child(user.getUid());
+        ref.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                int unreadCount = 0;
+                for (DataSnapshot ds : snapshot.getChildren()) {
+                    Boolean isRead = ds.child("isRead").getValue(Boolean.class);
+                    if (isRead != null && !isRead) {
+                        unreadCount++;
+                    }
+                }
+
+                if (unreadCount > 0) {
+                    tvNotificationBadge.setVisibility(View.VISIBLE);
+                    tvNotificationBadge.setText(String.valueOf(unreadCount));
+                } else {
+                    tvNotificationBadge.setVisibility(View.GONE);
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        });
     }
 
     private void setupUserData() {

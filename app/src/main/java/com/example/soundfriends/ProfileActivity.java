@@ -283,9 +283,39 @@ public class ProfileActivity extends AppCompatActivity {
             followingRef.removeValue();
             followersRef.removeValue();
         } else {
-            followingRef.setValue(true);
+            followingRef.setValue(true).addOnSuccessListener(aVoid -> sendFollowNotification());
             followersRef.setValue(true);
         }
+    }
+
+    private void sendFollowNotification() {
+        DatabaseReference userRef = FirebaseDatabase.getInstance().getReference("users").child(currentUserID);
+        userRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                User user = snapshot.getValue(User.class);
+                String userName = (user != null) ? user.getName() : "Ai đó";
+                String userAvatar = (user != null) ? user.getAvatar() : "";
+
+                DatabaseReference notificationRef = FirebaseDatabase.getInstance().getReference("notifications").child(profileUserID);
+                String notificationId = notificationRef.push().getKey();
+
+                java.util.Map<String, Object> notificationData = new java.util.HashMap<>();
+                notificationData.put("id", notificationId);
+                notificationData.put("fromUserId", currentUserID);
+                notificationData.put("fromUserName", userName);
+                notificationData.put("fromUserAvatar", userAvatar);
+                notificationData.put("type", "follow");
+                notificationData.put("message", "đã bắt đầu theo dõi bạn");
+                notificationData.put("timestamp", System.currentTimeMillis());
+                notificationData.put("isRead", false);
+
+                if (notificationId != null) {
+                    notificationRef.child(notificationId).setValue(notificationData);
+                }
+            }
+            @Override public void onCancelled(@NonNull DatabaseError error) {}
+        });
     }
 
     private void showEditProfileDialog() {

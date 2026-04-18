@@ -21,7 +21,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="#D18E8E"
-                android:padding="16dp">
+                android:padding="16dp"
+                android:clipChildren="false"
+                android:clipToPadding="false">
 
                 <de.hdodenhof.circleimageview.CircleImageView
                     android:id="@+id/ivUserAvatarHeader"
@@ -40,14 +42,38 @@
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
-                <ImageView
-                    android:id="@+id/ivNotification"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
+                <RelativeLayout
+                    android:id="@+id/rlNotification"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:layout_alignParentEnd="true"
-                    android:layout_marginEnd="28dp"
-                    android:src="@drawable/loop"
-                    app:tint="@android:color/white" />
+                    android:layout_marginEnd="16dp"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:id="@+id/ivNotification"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:src="@drawable/ic_notification_bell"
+                        app:tint="@android:color/white" />
+
+                    <TextView
+                        android:id="@+id/tvNotificationBadge"
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_alignTop="@id/ivNotification"
+                        android:layout_alignEnd="@id/ivNotification"
+                        android:layout_marginTop="-4dp"
+                        android:layout_marginEnd="-4dp"
+                        android:background="@drawable/bg_notification_badge"
+                        android:gravity="center"
+                        android:text="0"
+                        android:textColor="@android:color/white"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
+                </RelativeLayout>
 
                 <TextView
                     android:id="@+id/tvShareMusicPrompt"

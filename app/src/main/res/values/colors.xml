@@ -6,4 +6,5 @@
     <color name="primary_pink">#FFCED4</color>
     <color name="pink">#FFCED4</color>
     <color name="primary_pink_dark">#D1A9AE</color>
+    <color name="primary_pink_light">#FFF0F2</color>
 </resources>

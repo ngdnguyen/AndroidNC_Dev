@@ -34,7 +34,7 @@ import androidx.media3.session.SessionToken;
 import com.bumptech.glide.Glide;
 import com.example.soundfriends.adapter.HomeFeedAdapter;
 import com.example.soundfriends.fragments.CommentsFragment;
-import com.example.soundfriends.fragments.Model.Songs;
+import com.example.soundfriends.fragments.Model.User;
 import com.example.soundfriends.services.MusicService;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -258,6 +258,9 @@ public class Song extends AppCompatActivity implements SensorEventListener {
         Intent intent = getIntent();
         if (intent != null) {
             songId = intent.getStringExtra("songId");
+            if (songId == null) {
+                songId = intent.getStringExtra("SONG_ID");
+            }
         }
 
         DatabaseReference songsRef = FirebaseDatabase.getInstance().getReference().child("songs");
@@ -439,13 +442,49 @@ public class Song extends AppCompatActivity implements SensorEventListener {
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user == null) return;
         DatabaseReference userLikesRef = FirebaseDatabase.getInstance().getReference("user_likes").child(user.getUid()).child(songId);
-        isLiked = !isLiked;
-        updateLikeIconUI();
-        userLikesRef.addListenerForSingleValueEvent(new ValueEventListener() {
+        
+        if (!isLiked) {
+            // Like
+            isLiked = true;
+            updateLikeIconUI();
+            userLikesRef.setValue(true).addOnSuccessListener(aVoid -> sendLikeNotification());
+        } else {
+            // Unlike
+            isLiked = false;
+            updateLikeIconUI();
+            userLikesRef.removeValue();
+        }
+    }
+
+    private void sendLikeNotification() {
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null || currentSongUserID == null || currentSongUserID.equals(currentUser.getUid())) return;
+
+        DatabaseReference userRef = FirebaseDatabase.getInstance().getReference("users").child(currentUser.getUid());
+        userRef.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                if (snapshot.exists()) userLikesRef.removeValue();
-                else userLikesRef.setValue(true);
+                User user = snapshot.getValue(User.class);
+                String userName = (user != null) ? user.getName() : "Ai đó";
+                String userAvatar = (user != null) ? user.getAvatar() : "";
+
+                DatabaseReference notificationRef = FirebaseDatabase.getInstance().getReference("notifications").child(currentSongUserID);
+                String notificationId = notificationRef.push().getKey();
+
+                Map<String, Object> notificationData = new HashMap<>();
+                notificationData.put("id", notificationId);
+                notificationData.put("fromUserId", currentUser.getUid());
+                notificationData.put("fromUserName", userName);
+                notificationData.put("fromUserAvatar", userAvatar);
+                notificationData.put("type", "like");
+                notificationData.put("message", "đã thích bài hát của bạn");
+                notificationData.put("songId", songId);
+                notificationData.put("timestamp", System.currentTimeMillis());
+                notificationData.put("isRead", false);
+
+                if (notificationId != null) {
+                    notificationRef.child(notificationId).setValue(notificationData);
+                }
             }
             @Override public void onCancelled(@NonNull DatabaseError error) {}
         });

@@ -1,15 +1,18 @@
 package com.example.soundfriends.adapter;
 
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
-import android.net.Uri;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
@@ -25,13 +28,16 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.MutableData;
+import com.example.soundfriends.fragments.Model.User;
 import com.google.firebase.database.Transaction;
 import com.google.firebase.database.ValueEventListener;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.CommentViewHolder> {
     private List<Comment> comments;
@@ -92,6 +98,67 @@ public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.CommentV
             replyIntent.putExtra("commentId", comment.getCommentId());
             LocalBroadcastManager.getInstance(context).sendBroadcast(replyIntent);
         });
+
+        holder.itemView.setOnLongClickListener(v -> {
+            FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+            if (currentUser != null && currentUser.getUid().equals(comment.getUserId())) {
+                showEditDeleteDialog(comment);
+            }
+            return true;
+        });
+    }
+
+    private void showEditDeleteDialog(Comment comment) {
+        String[] options = {"Chỉnh sửa", "Xóa"};
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle("Tùy chọn bình luận");
+        builder.setItems(options, (dialog, which) -> {
+            if (which == 0) {
+                showEditDialog(comment);
+            } else {
+                showDeleteConfirmDialog(comment);
+            }
+        });
+        builder.show();
+    }
+
+    private void showEditDialog(Comment comment) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle("Chỉnh sửa bình luận");
+
+        final EditText input = new EditText(context);
+        input.setText(comment.getBody());
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT);
+        input.setLayoutParams(lp);
+        builder.setView(input);
+
+        builder.setPositiveButton("Lưu", (dialog, which) -> {
+            String newBody = input.getText().toString().trim();
+            if (!newBody.isEmpty()) {
+                DatabaseReference ref = FirebaseDatabase.getInstance().getReference("comments").child(comment.getCommentId());
+                ref.child("body").setValue(newBody).addOnSuccessListener(aVoid -> {
+                    Toast.makeText(context, "Đã cập nhật bình luận", Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+        builder.setNegativeButton("Hủy", (dialog, which) -> dialog.cancel());
+        builder.show();
+    }
+
+    private void showDeleteConfirmDialog(Comment comment) {
+        new AlertDialog.Builder(context)
+                .setTitle("Xóa bình luận")
+                .setMessage("Bạn có chắc chắn muốn xóa bình luận này?")
+                .setPositiveButton("Xóa", (dialog, which) -> {
+                    DatabaseReference ref = FirebaseDatabase.getInstance().getReference("comments").child(comment.getCommentId());
+                    ref.removeValue().addOnSuccessListener(aVoid -> {
+                        Toast.makeText(context, "Đã xóa bình luận", Toast.LENGTH_SHORT).show();
+                    });
+                })
+                .setNegativeButton("Hủy", null)
+                .show();
     }
 
     private void checkIfLiked(String commentId, ImageView btnLike) {
@@ -127,7 +194,44 @@ public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.CommentV
                 if (snapshot.exists()) {
                     likeRef.removeValue().addOnSuccessListener(aVoid -> updateLikeCount(comment.getCommentId(), -1));
                 } else {
-                    likeRef.setValue(true).addOnSuccessListener(aVoid -> updateLikeCount(comment.getCommentId(), 1));
+                    likeRef.setValue(true).addOnSuccessListener(aVoid -> {
+                        updateLikeCount(comment.getCommentId(), 1);
+                        sendCommentLikeNotification(comment);
+                    });
+                }
+            }
+            @Override public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
+    private void sendCommentLikeNotification(Comment comment) {
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null || comment.getUserId() == null || comment.getUserId().equals(currentUser.getUid())) return;
+
+        DatabaseReference userRef = FirebaseDatabase.getInstance().getReference("users").child(currentUser.getUid());
+        userRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                User user = snapshot.getValue(User.class);
+                String name = (user != null) ? user.getName() : "Ai đó";
+                String avatar = (user != null) ? user.getAvatar() : "";
+
+                DatabaseReference notificationRef = FirebaseDatabase.getInstance().getReference("notifications").child(comment.getUserId());
+                String notificationId = notificationRef.push().getKey();
+
+                Map<String, Object> notificationData = new HashMap<>();
+                notificationData.put("id", notificationId);
+                notificationData.put("fromUserId", currentUser.getUid());
+                notificationData.put("fromUserName", name);
+                notificationData.put("fromUserAvatar", avatar);
+                notificationData.put("type", "like");
+                notificationData.put("message", "đã thích bình luận của bạn: " + comment.getBody());
+                notificationData.put("songId", comment.getSongId());
+                notificationData.put("timestamp", System.currentTimeMillis());
+                notificationData.put("isRead", false);
+
+                if (notificationId != null) {
+                    notificationRef.child(notificationId).setValue(notificationData);
                 }
             }
             @Override public void onCancelled(@NonNull DatabaseError error) {}

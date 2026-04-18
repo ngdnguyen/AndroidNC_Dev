@@ -67,6 +67,8 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".NotificationActivity" />
+
         <!-- Khai báo MusicService -->
         <service
             android:name=".services.MusicService"

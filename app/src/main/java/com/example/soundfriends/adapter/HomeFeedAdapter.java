@@ -457,7 +457,54 @@ public class HomeFeedAdapter extends RecyclerView.Adapter<HomeFeedAdapter.ViewHo
                 if (snapshot.exists()) {
                     favRef.removeValue().addOnSuccessListener(aVoid -> updateLikeCountInSongNode(songId, -1));
                 } else {
-                    favRef.setValue(true).addOnSuccessListener(aVoid -> updateLikeCountInSongNode(songId, 1));
+                    favRef.setValue(true).addOnSuccessListener(aVoid -> {
+                        updateLikeCountInSongNode(songId, 1);
+                        sendLikeNotification(songId);
+                    });
+                }
+            }
+            @Override public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
+    private void sendLikeNotification(String songId) {
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null) return;
+
+        DatabaseReference songRef = FirebaseDatabase.getInstance().getReference("songs").child(songId);
+        songRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                Songs song = snapshot.getValue(Songs.class);
+                if (song != null && !song.getUserID().equals(currentUser.getUid())) {
+                    DatabaseReference userRef = FirebaseDatabase.getInstance().getReference("users").child(currentUser.getUid());
+                    userRef.addListenerForSingleValueEvent(new ValueEventListener() {
+                        @Override
+                        public void onDataChange(@NonNull DataSnapshot userSnapshot) {
+                            User user = userSnapshot.getValue(User.class);
+                            String userName = (user != null) ? user.getName() : "Ai đó";
+                            String userAvatar = (user != null) ? user.getAvatar() : "";
+
+                            DatabaseReference notificationRef = FirebaseDatabase.getInstance().getReference("notifications").child(song.getUserID());
+                            String notificationId = notificationRef.push().getKey();
+
+                            Map<String, Object> notificationData = new HashMap<>();
+                            notificationData.put("id", notificationId);
+                            notificationData.put("fromUserId", currentUser.getUid());
+                            notificationData.put("fromUserName", userName);
+                            notificationData.put("fromUserAvatar", userAvatar);
+                            notificationData.put("type", "like");
+                            notificationData.put("message", "đã thích bài hát của bạn");
+                            notificationData.put("songId", songId);
+                            notificationData.put("timestamp", System.currentTimeMillis());
+                            notificationData.put("isRead", false);
+
+                            if (notificationId != null) {
+                                notificationRef.child(notificationId).setValue(notificationData);
+                            }
+                        }
+                        @Override public void onCancelled(@NonNull DatabaseError error) {}
+                    });
                 }
             }
             @Override public void onCancelled(@NonNull DatabaseError error) {}
@@ -558,6 +605,7 @@ public class HomeFeedAdapter extends RecyclerView.Adapter<HomeFeedAdapter.ViewHo
                         deleteSongSilently(song, position);
                         Toast.makeText(context, "Bài viết đã bị xóa do vi phạm chính sách (nhiều báo cáo)", Toast.LENGTH_LONG).show();
                     } else {
+                        sendReportNotification(song);
                         Toast.makeText(context, "Cảm ơn bạn đã báo cáo. Chúng tôi sẽ xem xét bài viết này.", Toast.LENGTH_SHORT).show();
                     }
                 }
@@ -569,6 +617,9 @@ public class HomeFeedAdapter extends RecyclerView.Adapter<HomeFeedAdapter.ViewHo
     }
 
     private void deleteSongSilently(Songs song, int position) {
+        // Send notification before deleting or during deletion
+        sendDeletionNotification(song);
+
         // Remove from songs node
         FirebaseDatabase.getInstance().getReference("songs").child(song.getId()).removeValue();
         
@@ -989,6 +1040,51 @@ public class HomeFeedAdapter extends RecyclerView.Adapter<HomeFeedAdapter.ViewHo
         dialog.show();
     }
 
+    private void sendReportNotification(Songs song) {
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null || song.getUserID() == null || song.getUserID().equals(currentUser.getUid())) return;
+
+        DatabaseReference notificationRef = FirebaseDatabase.getInstance().getReference("notifications").child(song.getUserID());
+        String notificationId = notificationRef.push().getKey();
+
+        Map<String, Object> notificationData = new HashMap<>();
+        notificationData.put("id", notificationId);
+        notificationData.put("fromUserId", "system");
+        notificationData.put("fromUserName", "Hệ thống");
+        notificationData.put("fromUserAvatar", "");
+        notificationData.put("type", "report");
+        notificationData.put("message", "Bài hát '" + song.getTitle() + "' của bạn đã nhận được một báo cáo vi phạm nội dung.");
+        notificationData.put("songId", song.getId());
+        notificationData.put("timestamp", System.currentTimeMillis());
+        notificationData.put("isRead", false);
+
+        if (notificationId != null) {
+            notificationRef.child(notificationId).setValue(notificationData);
+        }
+    }
+
+    private void sendDeletionNotification(Songs song) {
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null || song.getUserID() == null) return;
+
+        DatabaseReference notificationRef = FirebaseDatabase.getInstance().getReference("notifications").child(song.getUserID());
+        String notificationId = notificationRef.push().getKey();
+
+        Map<String, Object> notificationData = new HashMap<>();
+        notificationData.put("id", notificationId);
+        notificationData.put("fromUserId", "system");
+        notificationData.put("fromUserName", "Hệ thống");
+        notificationData.put("fromUserAvatar", "");
+        notificationData.put("type", "delete_post");
+        notificationData.put("message", "Bài hát '" + song.getTitle() + "' của bạn đã bị gỡ bỏ do vi phạm chính sách.");
+        notificationData.put("timestamp", System.currentTimeMillis());
+        notificationData.put("isRead", false);
+
+        if (notificationId != null) {
+            notificationRef.child(notificationId).setValue(notificationData);
+        }
+    }
+
     private void handleShare(Songs song, String extraContent) {
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser == null) return;
@@ -1004,7 +1100,43 @@ public class HomeFeedAdapter extends RecyclerView.Adapter<HomeFeedAdapter.ViewHo
                                             song.getUrlImg(), song.getSrl(), currentUser.getUid(), 
                                             userName, userAvatar, extraContent,
                                             song.getUserID(), song.getUserName(), song.getUserAvatar(), song.getPostContent());
-                FirebaseDatabase.getInstance().getReference("songs").child(shareId).setValue(sharedPost);
+                FirebaseDatabase.getInstance().getReference("songs").child(shareId).setValue(sharedPost).addOnSuccessListener(aVoid -> {
+                    sendShareNotification(song);
+                });
+            }
+            @Override public void onCancelled(@NonNull DatabaseError error) {}
+        });
+    }
+
+    private void sendShareNotification(Songs song) {
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null || song.getUserID().equals(currentUser.getUid())) return;
+
+        DatabaseReference userRef = FirebaseDatabase.getInstance().getReference("users").child(currentUser.getUid());
+        userRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot userSnapshot) {
+                User user = userSnapshot.getValue(User.class);
+                String userName = (user != null) ? user.getName() : "Ai đó";
+                String userAvatar = (user != null) ? user.getAvatar() : "";
+
+                DatabaseReference notificationRef = FirebaseDatabase.getInstance().getReference("notifications").child(song.getUserID());
+                String notificationId = notificationRef.push().getKey();
+
+                Map<String, Object> notificationData = new HashMap<>();
+                notificationData.put("id", notificationId);
+                notificationData.put("fromUserId", currentUser.getUid());
+                notificationData.put("fromUserName", userName);
+                notificationData.put("fromUserAvatar", userAvatar);
+                notificationData.put("type", "share");
+                notificationData.put("message", "đã chia sẻ bài hát của bạn");
+                notificationData.put("songId", song.getId());
+                notificationData.put("timestamp", System.currentTimeMillis());
+                notificationData.put("isRead", false);
+
+                if (notificationId != null) {
+                    notificationRef.child(notificationId).setValue(notificationData);
+                }
             }
             @Override public void onCancelled(@NonNull DatabaseError error) {}
         });
