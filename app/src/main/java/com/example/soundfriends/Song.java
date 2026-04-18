@@ -141,6 +141,15 @@ public class Song extends AppCompatActivity implements SensorEventListener {
         initializeController();
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        songId = intent.getStringExtra("songId");
+        if (songId == null) songId = intent.getStringExtra("SONG_ID");
+        getData();
+    }
+
     private void initializeController() {
         SessionToken sessionToken = new SessionToken(this, new ComponentName(this, MusicService.class));
         controllerFuture = new MediaController.Builder(this, sessionToken).buildAsync();
@@ -164,6 +173,22 @@ public class Song extends AppCompatActivity implements SensorEventListener {
                 // Cập nhật giao diện nút play ngay lập tức dựa trên trạng thái hiện tại
                 play.setImageResource(mediaController.isPlaying() ? R.drawable.pause : R.drawable.play);
                 
+                // FIX: Nếu mở từ thông báo (songId trống), lấy ID từ MediaController
+                if ((songId == null || songId.isEmpty()) && mediaController.getCurrentMediaItem() != null) {
+                    songId = mediaController.getCurrentMediaItem().mediaId;
+                    // Tìm và cập nhật UI từ danh sách đã tải
+                    for (int i = 0; i < songSnapshots.size(); i++) {
+                        DataSnapshot ds = songSnapshots.get(i);
+                        String id = ds.child("id").getValue(String.class);
+                        if (id == null) id = ds.getKey();
+                        if (id != null && id.equals(songId)) {
+                            songIndex = i;
+                            updateSongUI(ds);
+                            break;
+                        }
+                    }
+                }
+
                 // Nếu dữ liệu đã tải xong trước khi controller sẵn sàng, hãy thực hiện phát/kiểm tra
                 if (songIndex != -1) {
                     playSongAt(songIndex);
@@ -361,15 +386,22 @@ public class Song extends AppCompatActivity implements SensorEventListener {
             return;
         }
 
-        MediaMetadata metadata = new MediaMetadata.Builder()
+        MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder()
                 .setTitle(title)
-                .setArtist(artist)
-                .build();
+                .setArtist(artist);
+
+        String imgUrl = ds.child("urlImg").getValue(String.class);
+        if (imgUrl != null && !imgUrl.isEmpty()) {
+            try {
+                byte[] imageBytes = Base64.decode(imgUrl, Base64.DEFAULT);
+                metadataBuilder.setArtworkData(imageBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER);
+            } catch (Exception ignored) {}
+        }
 
         MediaItem mediaItem = new MediaItem.Builder()
-                .setMediaId(id) // Gán mediaId để kiểm tra liên mạch
+                .setMediaId(id)
                 .setUri(url)
-                .setMediaMetadata(metadata)
+                .setMediaMetadata(metadataBuilder.build())
                 .build();
 
         mediaController.setMediaItem(mediaItem);

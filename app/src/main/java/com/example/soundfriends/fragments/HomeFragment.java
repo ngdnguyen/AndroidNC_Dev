@@ -117,6 +117,16 @@ public class HomeFragment extends Fragment {
         });
 
         listenForNotifications();
+
+        // Lắng nghe sự kiện cuộn của NestedScrollView
+        androidx.core.widget.NestedScrollView nestedScrollView = view.findViewById(R.id.nested_scroll_view); // Cần đặt ID cho NestedScrollView trong XML
+        if (nestedScrollView != null) {
+            nestedScrollView.setOnScrollChangeListener((androidx.core.widget.NestedScrollView.OnScrollChangeListener) (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+                if (getActivity() instanceof MainActivity) {
+                    ((MainActivity) getActivity()).updateMiniPlayerVisibility();
+                }
+            });
+        }
     }
 
     private void listenForNotifications() {
@@ -180,7 +190,7 @@ public class HomeFragment extends Fragment {
         rcvBestCategories.setLayoutManager(new WrapContentLinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
         
         rcvHomeFeed.setLayoutManager(new LinearLayoutManager(getContext()));
-        rcvHomeFeed.setNestedScrollingEnabled(false);
+        // rcvHomeFeed.setNestedScrollingEnabled(false); // BỎ DÒNG NÀY ĐỂ BẮT ĐƯỢC SỰ KIỆN CUỘN
 
         bestSongsAdapter = new Main_BestSongsAdapter(getContext(), songs);
         rcvBestSongs.setAdapter(bestSongsAdapter);
@@ -193,6 +203,43 @@ public class HomeFragment extends Fragment {
 
         homeFeedAdapter = new HomeFeedAdapter(getContext(), feedSongs);
         rcvHomeFeed.setAdapter(homeFeedAdapter);
+
+        rcvHomeFeed.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+                if (getActivity() instanceof MainActivity) {
+                    ((MainActivity) getActivity()).updateMiniPlayerVisibility();
+                }
+            }
+        });
+    }
+
+    public boolean isSongVisible(String songId) {
+        if (songId == null || songId.isEmpty() || rcvHomeFeed == null) return false;
+
+        LinearLayoutManager layoutManager = (LinearLayoutManager) rcvHomeFeed.getLayoutManager();
+        if (layoutManager == null) return false;
+
+        // Tìm vị trí bài hát trong list
+        int position = -1;
+        for (int i = 0; i < feedSongs.size(); i++) {
+            if (songId.equals(feedSongs.get(i).getId())) {
+                position = i;
+                break;
+            }
+        }
+
+        if (position != -1) {
+            View itemView = layoutManager.findViewByPosition(position);
+            if (itemView != null) {
+                android.graphics.Rect rect = new android.graphics.Rect();
+                boolean isGlobalVisible = itemView.getGlobalVisibleRect(rect);
+                // Chỉ coi là visible nếu hiện ít nhất 30% chiều cao item trên màn hình
+                return isGlobalVisible && rect.height() > (itemView.getHeight() * 0.3);
+            }
+        }
+        return false;
     }
 
     private void getSongsData() {

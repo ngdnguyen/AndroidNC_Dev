@@ -1,12 +1,11 @@
 package com.example.soundfriends;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.viewpager2.widget.ViewPager2;
-
+import android.content.ComponentName;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
+import android.os.Handler;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.MenuItem;
@@ -14,9 +13,21 @@ import android.view.View;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.Player;
+import androidx.media3.session.MediaController;
+import androidx.media3.session.SessionToken;
+import androidx.viewpager2.widget.ViewPager2;
+
 import com.example.soundfriends.adapter.ViewPagerAdapter;
+import com.example.soundfriends.services.MusicService;
 import com.example.soundfriends.auth.Login;
 import com.example.soundfriends.fragments.HomeFragment;
 import com.example.soundfriends.fragments.Model.User;
@@ -34,6 +45,10 @@ import com.google.firebase.database.ValueEventListener;
 
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.ExecutionException;
+
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 
 public class MainActivity extends AppCompatActivity {
     ViewPager2 viewPager;
@@ -41,6 +56,32 @@ public class MainActivity extends AppCompatActivity {
     AutoCompleteTextView searchBar;
     ImageButton btnClearSearch;
     private Timer timer;
+    
+    // Mini Player components
+    private View miniPlayerCard;
+    private ImageView miniPlayerImg;
+    private TextView miniPlayerTitle, miniPlayerArtist;
+    private ImageButton miniPlayerPlayPause, miniPlayerClose;
+    private ProgressBar miniPlayerProgress;
+    private boolean isMiniPlayerDismissed = false;
+    private MediaController mediaController;
+    private ListenableFuture<MediaController> controllerFuture;
+    private final Handler progressHandler = new Handler();
+    private String currentPlayingSongId = "";
+
+    private final Runnable updateProgressRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (mediaController != null && mediaController.isPlaying()) {
+                long position = mediaController.getCurrentPosition();
+                long duration = mediaController.getDuration();
+                if (duration > 0) {
+                    miniPlayerProgress.setProgress((int) (position * 100 / duration));
+                }
+            }
+            progressHandler.postDelayed(this, 1000);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,6 +98,9 @@ public class MainActivity extends AppCompatActivity {
         btnClearSearch = findViewById(R.id.btnSearch);
 
         syncUserToDatabase();
+
+        initMiniPlayer();
+        setupMiniPlayerController();
 
         ViewPagerAdapter viewPagerAdapter = new ViewPagerAdapter(this);
         viewPager.setAdapter(viewPagerAdapter);
@@ -75,6 +119,7 @@ public class MainActivity extends AppCompatActivity {
                         bottomNavigationView.getMenu().findItem(R.id.menu_settings).setChecked(true);
                         break;
                 }
+                updateMiniPlayerVisibility(); // Cập nhật visibility khi chuyển tab
             }
         });
         bottomNavigationView.setOnItemSelectedListener(new NavigationBarView.OnItemSelectedListener() {
@@ -198,11 +243,158 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     
+    private void initMiniPlayer() {
+        miniPlayerCard = findViewById(R.id.miniPlayerCard);
+        miniPlayerImg = findViewById(R.id.miniPlayerImg);
+        miniPlayerTitle = findViewById(R.id.miniPlayerTitle);
+        miniPlayerArtist = findViewById(R.id.miniPlayerArtist);
+        miniPlayerPlayPause = findViewById(R.id.miniPlayerPlayPause);
+        miniPlayerProgress = findViewById(R.id.miniPlayerProgress);
+        miniPlayerClose = findViewById(R.id.miniPlayerClose);
+
+        miniPlayerClose.setOnClickListener(v -> {
+            isMiniPlayerDismissed = true;
+            if (mediaController != null) {
+                mediaController.pause();
+            }
+            miniPlayerCard.setVisibility(View.GONE);
+        });
+
+        miniPlayerPlayPause.setOnClickListener(v -> {
+            if (mediaController != null) {
+                if (mediaController.isPlaying()) {
+                    mediaController.pause();
+                } else {
+                    isMiniPlayerDismissed = false; // Reset khi người dùng chủ động nhấn Play
+                    mediaController.play();
+                    updateMiniPlayerVisibility();
+                }
+            }
+        });
+
+        miniPlayerCard.setOnClickListener(v -> {
+            if (currentPlayingSongId != null && !currentPlayingSongId.isEmpty()) {
+                Intent intent = new Intent(this, Song.class);
+                intent.putExtra("songId", currentPlayingSongId);
+                startActivity(intent);
+            }
+        });
+    }
+
+    private void setupMiniPlayerController() {
+        SessionToken sessionToken = new SessionToken(this, new ComponentName(this, MusicService.class));
+        controllerFuture = new MediaController.Builder(this, sessionToken).buildAsync();
+        controllerFuture.addListener(() -> {
+            try {
+                mediaController = controllerFuture.get();
+                mediaController.addListener(new Player.Listener() {
+                    @Override
+                    public void onMediaItemTransition(MediaItem mediaItem, int reason) {
+                        if (mediaItem != null) {
+                            currentPlayingSongId = mediaItem.mediaId;
+                        }
+                        updateMiniPlayerUI(mediaItem);
+                        updateMiniPlayerVisibility();
+                    }
+
+                    @Override
+                    public void onIsPlayingChanged(boolean isPlaying) {
+                        miniPlayerPlayPause.setImageResource(isPlaying ? R.drawable.pause : R.drawable.play);
+                        if (isPlaying) {
+                            isMiniPlayerDismissed = false; // Reset trạng thái ẩn khi nhạc bắt đầu phát
+                            updateMiniPlayerVisibility();
+                            progressHandler.post(updateProgressRunnable);
+                        } else {
+                            progressHandler.removeCallbacks(updateProgressRunnable);
+                        }
+                    }
+
+                    @Override
+                    public void onPlaybackStateChanged(int playbackState) {
+                        if (playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING) {
+                            updateMiniPlayerVisibility();
+                            updateMiniPlayerUI(mediaController.getCurrentMediaItem());
+                        } else if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
+                            if (miniPlayerCard != null) miniPlayerCard.setVisibility(View.GONE);
+                        }
+                    }
+                });
+
+                if (mediaController.getPlaybackState() != Player.STATE_IDLE) {
+                    MediaItem item = mediaController.getCurrentMediaItem();
+                    if (item != null) currentPlayingSongId = item.mediaId;
+                    updateMiniPlayerVisibility();
+                    updateMiniPlayerUI(item);
+                    miniPlayerPlayPause.setImageResource(mediaController.isPlaying() ? R.drawable.pause : R.drawable.play);
+                }
+
+            } catch (ExecutionException | InterruptedException e) {
+                e.printStackTrace();
+            }
+        }, MoreExecutors.directExecutor());
+    }
+
+    private void updateMiniPlayerUI(MediaItem mediaItem) {
+        if (mediaItem != null && mediaItem.mediaMetadata != null) {
+            // Khi có bài hát mới hoặc phát lại bài cũ, reset trạng thái dismissed
+            if (isMiniPlayerDismissed) {
+                isMiniPlayerDismissed = false;
+            }
+
+            miniPlayerTitle.setText(mediaItem.mediaMetadata.title);
+            miniPlayerArtist.setText(mediaItem.mediaMetadata.artist);
+            
+            if (mediaItem.mediaMetadata.artworkData != null) {
+                byte[] data = mediaItem.mediaMetadata.artworkData;
+                Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
+                miniPlayerImg.setImageBitmap(bitmap);
+            } else {
+                miniPlayerImg.setImageResource(R.drawable.logo);
+            }
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        updateMiniPlayerVisibility();
+    }
+
+    public void updateMiniPlayerVisibility() {
+        if (isMiniPlayerDismissed) {
+            if (miniPlayerCard != null) miniPlayerCard.setVisibility(View.GONE);
+            return;
+        }
+        if (mediaController == null || mediaController.getPlaybackState() == Player.STATE_IDLE || mediaController.getPlaybackState() == Player.STATE_ENDED) {
+            if (miniPlayerCard != null) miniPlayerCard.setVisibility(View.GONE);
+            return;
+        }
+
+        if (viewPager.getCurrentItem() != 0) {
+            if (miniPlayerCard != null) miniPlayerCard.setVisibility(View.VISIBLE);
+            return;
+        }
+
+        HomeFragment homeFragment = (HomeFragment) getSupportFragmentManager().findFragmentByTag("f0");
+        if (homeFragment != null && homeFragment.isAdded()) {
+            boolean isVisibleOnFeed = homeFragment.isSongVisible(currentPlayingSongId);
+            if (miniPlayerCard != null) {
+                miniPlayerCard.setVisibility(isVisibleOnFeed ? View.GONE : View.VISIBLE);
+            }
+        } else {
+            if (miniPlayerCard != null) miniPlayerCard.setVisibility(View.VISIBLE);
+        }
+    }
+
     @Override
     protected void onDestroy() {
         if (timer != null) {
             timer.cancel();
         }
+        if (controllerFuture != null) {
+            MediaController.releaseFuture(controllerFuture);
+        }
+        progressHandler.removeCallbacks(updateProgressRunnable);
         super.onDestroy();
     }
 }

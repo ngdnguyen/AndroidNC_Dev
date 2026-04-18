@@ -347,9 +347,22 @@ public class HomeFeedAdapter extends RecyclerView.Adapter<HomeFeedAdapter.ViewHo
         }
         currentPlayingSongId = song.getId();
         UploadActivity.stopAllPreview();
+
+        MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder()
+                .setTitle(song.getTitle())
+                .setArtist(song.getArtist());
+
+        if (song.getUrlImg() != null && !song.getUrlImg().isEmpty()) {
+            try {
+                byte[] imageBytes = Base64.decode(song.getUrlImg(), Base64.DEFAULT);
+                metadataBuilder.setArtworkData(imageBytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER);
+            } catch (Exception ignored) {}
+        }
+
         MediaItem mediaItem = new MediaItem.Builder()
-                .setMediaId(song.getId()).setUri(song.getSrl())
-                .setMediaMetadata(new MediaMetadata.Builder().setTitle(song.getTitle()).setArtist(song.getArtist()).build())
+                .setMediaId(song.getId())
+                .setUri(song.getSrl())
+                .setMediaMetadata(metadataBuilder.build())
                 .build();
         mediaController.setMediaItem(mediaItem);
         mediaController.prepare();

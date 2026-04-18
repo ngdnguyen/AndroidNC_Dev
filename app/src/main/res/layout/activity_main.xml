@@ -52,4 +52,11 @@
         app:menu="@menu/bottom_nav"
         />
 
+    <!-- Nhúng Mini Player vào đây -->
+    <include
+        layout="@layout/layout_mini_player"
+        android:layout_width="match_parent"
+        android:layout_height="62dp"
+        android:layout_above="@id/bottom_nav" />
+
 </RelativeLayout>

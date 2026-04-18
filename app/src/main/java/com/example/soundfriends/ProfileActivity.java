@@ -20,6 +20,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.media3.session.MediaController;
+import androidx.media3.session.SessionToken;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -27,8 +29,11 @@ import com.bumptech.glide.Glide;
 import com.example.soundfriends.adapter.HomeFeedAdapter;
 import com.example.soundfriends.fragments.Model.Songs;
 import com.example.soundfriends.fragments.Model.User;
+import com.example.soundfriends.services.MusicService;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.tabs.TabLayout;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.UserProfileChangeRequest;
@@ -43,7 +48,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
+import android.content.ComponentName;
 import de.hdodenhof.circleimageview.CircleImageView;
 
 public class ProfileActivity extends AppCompatActivity {
@@ -58,6 +65,9 @@ public class ProfileActivity extends AppCompatActivity {
     private LinearLayout layoutInfo;
     private View llFollowers, llFollowing;
     private FloatingActionButton fabAddPost;
+
+    private MediaController mediaController;
+    private ListenableFuture<MediaController> controllerFuture;
 
     private String profileUserID;
     private String currentUserID;
@@ -397,5 +407,32 @@ public class ProfileActivity extends AppCompatActivity {
         userRef.child("avatar").setValue("data:image/jpeg;base64," + base64Image);
         
         Toast.makeText(this, "Đã cập nhật ảnh đại diện", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        initializeController();
+    }
+
+    private void initializeController() {
+        SessionToken sessionToken = new SessionToken(this, new ComponentName(this, MusicService.class));
+        controllerFuture = new MediaController.Builder(this, sessionToken).buildAsync();
+        controllerFuture.addListener(() -> {
+            try {
+                mediaController = controllerFuture.get();
+            } catch (ExecutionException | InterruptedException e) {
+                e.printStackTrace();
+            }
+        }, MoreExecutors.directExecutor());
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (controllerFuture != null) {
+            MediaController.releaseFuture(controllerFuture);
+            mediaController = null;
+        }
     }
 }
