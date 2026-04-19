@@ -163,9 +163,20 @@ public class Song extends AppCompatActivity implements SensorEventListener {
                     }
 
                     @Override
-                    public void onPlaybackStateChanged(int playbackState) {
-                        if (playbackState == Player.STATE_ENDED) {
-                            playNextSong();
+                    public void onMediaItemTransition(MediaItem mediaItem, int reason) {
+                        if (mediaItem != null) {
+                            songId = mediaItem.mediaId;
+                            // Tìm và cập nhật UI khi chuyển bài (từ Widget hoặc nút bấm)
+                            for (int i = 0; i < songSnapshots.size(); i++) {
+                                DataSnapshot ds = songSnapshots.get(i);
+                                String id = ds.child("id").getValue(String.class);
+                                if (id == null) id = ds.getKey();
+                                if (id != null && id.equals(songId)) {
+                                    songIndex = i;
+                                    updateSongUI(ds);
+                                    break;
+                                }
+                            }
                         }
                     }
                 });
@@ -369,22 +380,29 @@ public class Song extends AppCompatActivity implements SensorEventListener {
     private void playSongAt(int index) {
         if (mediaController == null || index < 0 || index >= songSnapshots.size()) return;
         
-        DataSnapshot ds = songSnapshots.get(index);
+        // Tạo danh sách MediaItems từ toàn bộ songSnapshots để bật tính năng Next/Prev
+        List<MediaItem> mediaItems = new ArrayList<>();
+        for (DataSnapshot snapshot : songSnapshots) {
+            mediaItems.add(createMediaItemFromSnapshot(snapshot));
+        }
+
+        // Kiểm tra nếu playlist đã khớp thì chỉ cần seek, nếu chưa thì set mới
+        if (mediaController.getMediaItemCount() != mediaItems.size()) {
+            mediaController.setMediaItems(mediaItems, index, 0);
+        } else {
+            mediaController.seekTo(index, 0);
+        }
+        
+        mediaController.prepare();
+        mediaController.play();
+    }
+
+    private MediaItem createMediaItemFromSnapshot(DataSnapshot ds) {
         String url = ds.child("srl").getValue(String.class);
         String title = ds.child("title").getValue(String.class);
         String artist = ds.child("artist").getValue(String.class);
         String id = ds.child("id").getValue(String.class);
         if (id == null) id = ds.getKey();
-
-        if (url == null) return;
-
-        // KIỂM TRA LIÊN MẠCH: Nếu bài đang phát trùng với bài yêu cầu thì KHÔNG phát lại
-        MediaItem currentItem = mediaController.getCurrentMediaItem();
-        if (currentItem != null && id.equals(currentItem.mediaId)) {
-            // Nhạc đang phát đúng bài này rồi, chỉ cần đảm bảo nó đang Play
-            if (!mediaController.isPlaying()) mediaController.play();
-            return;
-        }
 
         MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder()
                 .setTitle(title)
@@ -398,31 +416,29 @@ public class Song extends AppCompatActivity implements SensorEventListener {
             } catch (Exception ignored) {}
         }
 
-        MediaItem mediaItem = new MediaItem.Builder()
+        return new MediaItem.Builder()
                 .setMediaId(id)
                 .setUri(url)
                 .setMediaMetadata(metadataBuilder.build())
                 .build();
-
-        mediaController.setMediaItem(mediaItem);
-        mediaController.prepare();
-        mediaController.play();
     }
 
     private void playNextSong() {
-        if (songCount <= 0) return;
-        songIndex = (int) ((songIndex + 1) % songCount);
-        DataSnapshot nextSnapshot = songSnapshots.get(songIndex);
-        updateSongUI(nextSnapshot);
-        playSongAt(songIndex);
+        if (mediaController != null && mediaController.hasNextMediaItem()) {
+            mediaController.seekToNextMediaItem();
+        } else if (songCount > 0) {
+            songIndex = (int) ((songIndex + 1) % songCount);
+            playSongAt(songIndex);
+        }
     }
 
     private void playPreviousSong() {
-        if (songCount <= 0) return;
-        songIndex = (int) ((songIndex - 1 + songCount) % songCount);
-        DataSnapshot prevSnapshot = songSnapshots.get(songIndex);
-        updateSongUI(prevSnapshot);
-        playSongAt(songIndex);
+        if (mediaController != null && mediaController.hasPreviousMediaItem()) {
+            mediaController.seekToPreviousMediaItem();
+        } else if (songCount > 0) {
+            songIndex = (int) ((songIndex - 1 + songCount) % songCount);
+            playSongAt(songIndex);
+        }
     }
 
     private void updateUI_Loop() {
