@@ -121,6 +121,7 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
             } else if (notification.getSongId() != null && !notification.getSongId().isEmpty()) {
                 Intent intent = new Intent(context, com.example.soundfriends.Song.class);
                 intent.putExtra("SONG_ID", notification.getSongId());
+                intent.putExtra("songId", notification.getSongId()); // Đưa cả 2 key cho chắc chắn
                 context.startActivity(intent);
             }
         });

@@ -200,7 +200,15 @@ public class SettingsFragment extends Fragment implements AdapterView.OnItemSele
     public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if(requestCode == 101 && resultCode  == Activity.RESULT_OK && data != null && data.getData() != null){
-            audioUri = data.getData();
+            Uri selectedUri = data.getData();
+            long fileSize = getFileSize(selectedUri);
+
+            if (fileSize > 10 * 1024 * 1024) { // 10MB
+                Toast.makeText(getContext(), "Dung lượng file quá lớn. Vui lòng chọn file dưới 10MB", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            audioUri = selectedUri;
             textViewImage.setText(getFileName(audioUri));
             try {
                 metadataRetriever.setDataSource(requireContext(), audioUri);
@@ -255,7 +263,17 @@ public class SettingsFragment extends Fragment implements AdapterView.OnItemSele
         artist1 = artist.getText().toString().trim();
         category1 = category.getText().toString().trim();
 
-        if(audioUri != null && !title1.isEmpty()){
+        if (audioUri == null) {
+            Toast.makeText(getContext(), "Vui lòng chọn một bài hát", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (getFileSize(audioUri) > 10 * 1024 * 1024) {
+            Toast.makeText(getContext(), "File vượt quá giới hạn 10MB", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if(!title1.isEmpty()){
             ToggleShowHideUI.toggleShowUI(true, progressBar);
             StorageReference storageReference = mStorageref.child(System.currentTimeMillis() + "." + getFileExtension(audioUri));
             mUploadsTask = storageReference.putFile(audioUri).addOnSuccessListener(taskSnapshot -> {
@@ -295,6 +313,28 @@ public class SettingsFragment extends Fragment implements AdapterView.OnItemSele
 
     private String getFileExtension(Uri uri){
         return MimeTypeMap.getSingleton().getExtensionFromMimeType(getContext().getContentResolver().getType(uri));
+    }
+
+    private long getFileSize(Uri uri) {
+        long size = 0;
+        if (uri == null) return 0;
+        if (uri.getScheme().equals("content")) {
+            try (Cursor cursor = requireContext().getContentResolver().query(uri, null, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    int index = cursor.getColumnIndex(OpenableColumns.SIZE);
+                    if (index != -1) size = cursor.getLong(index);
+                }
+            } catch (Exception e) {
+                Log.e("SettingsFragment", "Error getting file size: " + e.getMessage());
+            }
+        } else if (uri.getScheme().equals("file")) {
+            String path = uri.getPath();
+            if (path != null) {
+                java.io.File file = new java.io.File(path);
+                if (file.exists()) size = file.length();
+            }
+        }
+        return size;
     }
 
     @Override public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {}

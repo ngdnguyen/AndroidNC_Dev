@@ -228,7 +228,9 @@ public class ProfileActivity extends AppCompatActivity {
                         userSongs.add(song);
                     }
                 }
-                Collections.reverse(userSongs);
+                // Sắp xếp theo timestamp giảm dần (mới nhất lên đầu)
+                Collections.sort(userSongs, (s1, s2) -> Long.compare(s2.getTimestamp(), s1.getTimestamp()));
+
                 adapter.notifyDataSetChanged();
                 progressBar.setVisibility(View.GONE);
             }

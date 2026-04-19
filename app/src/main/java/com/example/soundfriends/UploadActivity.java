@@ -247,7 +247,15 @@ public class UploadActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 101 && resultCode == Activity.RESULT_OK && data != null && data.getData() != null) {
-            audioUri = data.getData();
+            Uri selectedUri = data.getData();
+            long fileSize = getFileSize(selectedUri);
+            
+            if (fileSize > 10 * 1024 * 1024) { // 10MB
+                Toast.makeText(this, "Dung lượng file quá lớn. Vui lòng chọn file dưới 10MB", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            audioUri = selectedUri;
             cvMusicInfo.setVisibility(View.VISIBLE);
             tvFileName.setText(getFileName(audioUri));
             extractMetadata(audioUri);
@@ -466,6 +474,29 @@ public class UploadActivity extends AppCompatActivity {
         return result;
     }
 
+    private long getFileSize(Uri uri) {
+        long size = 0;
+        if (uri == null) return 0;
+        
+        if (uri.getScheme().equals("content")) {
+            try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    int index = cursor.getColumnIndex(OpenableColumns.SIZE);
+                    if (index != -1) size = cursor.getLong(index);
+                }
+            } catch (Exception e) {
+                Log.e("UploadActivity", "Error getting file size: " + e.getMessage());
+            }
+        } else if (uri.getScheme().equals("file")) {
+            String path = uri.getPath();
+            if (path != null) {
+                File file = new File(path);
+                if (file.exists()) size = file.length();
+            }
+        }
+        return size;
+    }
+
     private void uploadPost() {
         String title = etSongTitle.getText().toString().trim();
         String artist = etArtist.getText().toString().trim();
@@ -476,6 +507,12 @@ public class UploadActivity extends AppCompatActivity {
             Toast.makeText(this, "Vui lòng chọn hoặc ghi âm một bài hát", Toast.LENGTH_SHORT).show();
             return;
         }
+
+        if (getFileSize(audioUri) > 10 * 1024 * 1024) {
+            Toast.makeText(this, "File vượt quá giới hạn 10MB", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         if (title.isEmpty()) {
             Toast.makeText(this, "Vui lòng nhập tên bài hát", Toast.LENGTH_SHORT).show();
             return;
@@ -514,7 +551,7 @@ public class UploadActivity extends AppCompatActivity {
                                 .addOnSuccessListener(aVoid -> {
                                     progressBar.setVisibility(View.GONE);
                                     Toast.makeText(UploadActivity.this, "Đăng bài thành công!", Toast.LENGTH_SHORT).show();
-                                    sendNewSongNotification(title);
+                                    sendNewSongNotification(songID, title);
                                     finish();
                                 })
                                 .addOnFailureListener(e -> {
@@ -535,7 +572,7 @@ public class UploadActivity extends AppCompatActivity {
                 });
     }
     
-    private void sendNewSongNotification(String songTitle) {
+    private void sendNewSongNotification(String songId, String songTitle) {
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser == null) return;
 
@@ -556,6 +593,7 @@ public class UploadActivity extends AppCompatActivity {
                         notificationData.put("fromUserAvatar", currentUserAvatar);
                         notificationData.put("type", "new_post");
                         notificationData.put("message", "vừa đăng bài hát mới: " + songTitle);
+                        notificationData.put("songId", songId);
                         notificationData.put("timestamp", System.currentTimeMillis());
                         notificationData.put("isRead", false);
 

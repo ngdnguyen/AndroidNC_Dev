@@ -747,6 +747,11 @@ public class HomeFeedAdapter extends RecyclerView.Adapter<HomeFeedAdapter.ViewHo
             return;
         }
 
+        if (editAudioUri != null && getFileSize(editAudioUri) > 10 * 1024 * 1024) {
+            Toast.makeText(context, "File vượt quá giới hạn 10MB. Vui lòng chọn file khác.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         currentEditPbUpload.setVisibility(View.VISIBLE);
 
         if (editAudioUri != null) {
@@ -1012,13 +1017,40 @@ public class HomeFeedAdapter extends RecyclerView.Adapter<HomeFeedAdapter.ViewHo
                 } catch (IOException e) { e.printStackTrace(); }
             }
         } else if (requestCode == EDIT_PICK_AUDIO_REQUEST) {
-            editAudioUri = data.getData();
-            if (editAudioUri != null) {
+            Uri selectedUri = data.getData();
+            if (selectedUri != null) {
+                if (getFileSize(selectedUri) > 10 * 1024 * 1024) {
+                    Toast.makeText(context, "Dung lượng file quá lớn. Vui lòng chọn file dưới 10MB", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                editAudioUri = selectedUri;
                 if (currentEditTvFileName != null) currentEditTvFileName.setText(getFileName(editAudioUri));
                 extractMetadata(editAudioUri);
                 stopEditPreview();
             }
         }
+    }
+
+    private long getFileSize(Uri uri) {
+        long size = 0;
+        if (uri == null) return 0;
+        if (uri.getScheme().equals("content")) {
+            try (Cursor cursor = context.getContentResolver().query(uri, null, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    int index = cursor.getColumnIndex(OpenableColumns.SIZE);
+                    if (index != -1) size = cursor.getLong(index);
+                }
+            } catch (Exception e) {
+                Log.e("HomeFeedAdapter", "Error getting file size: " + e.getMessage());
+            }
+        } else if (uri.getScheme().equals("file")) {
+            String path = uri.getPath();
+            if (path != null) {
+                File file = new File(path);
+                if (file.exists()) size = file.length();
+            }
+        }
+        return size;
     }
 
     private void showDeleteConfirmDialog(Songs song, int position) {
